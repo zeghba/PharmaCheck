@@ -61,6 +61,23 @@
 
   function units(n) { return n + (Number(n) === 1 ? ' unit' : ' units'); }
 
+  /* Wherever a medicine is named from the catalogue, its barcode is shown
+     with it — that number is what the staff read off the box and what the
+     scanner matches on, so it belongs next to the name and not only in the
+     sheet that happens to be open. */
+  function codeChip(barcode) {
+    if (!barcode) return '';
+    return '<span class="codechip"><svg class="icon icon--xs"><use href="#i-barcode"/></svg>' +
+      escapeHtml(barcode) + '</span>';
+  }
+
+  /* Sales and reports carry the medicine by name, so the barcode is looked
+     up. A name with no catalogue entry left simply shows no chip. */
+  function codeChipFor(name) {
+    var med = Store.findMedicine(name);
+    return med ? codeChip(med.barcode) : '';
+  }
+
   /* Chart labels need to stay short; the decimal comma matches money(). */
   function compactMoney(value) {
     var v = Number(value) || 0;
@@ -1003,6 +1020,7 @@
                 (item.strength ? ' <span class="stockrow__strength">' + escapeHtml(item.strength) + '</span>' : '') +
               '</p>' +
               '<p class="stockrow__meta">' +
+                codeChip(item.barcode) +
                 '<span>' + escapeHtml(V.formLabel(item.form)) + ' · ' + escapeHtml(item.batch) + '</span>' +
                 '<span>Exp ' + escapeHtml(item.expiry) + '</span>' +
                 (low ? '<span class="stockrow__warn">' +
@@ -1294,7 +1312,7 @@
         return {
           value: m.name,
           label: m.name,
-          meta: [m.strength, V.formLabel(m.form), V.packagingLabel(m.packaging)]
+          meta: [m.barcode, m.strength, V.formLabel(m.form), V.packagingLabel(m.packaging)]
             .filter(Boolean).join(' · '),
           tag: units(m.qty),
           tagWarn: Store.isLow(m),
@@ -1359,9 +1377,10 @@
         '<li class="rankrow">' +
           '<span class="rankrow__no">' + (i + 1) + '</span>' +
           '<div class="rankrow__body">' +
-            '<p class="rankrow__name">' + escapeHtml(item.name) + '</p>' +
-            '<p class="rankrow__meta">' + money(item.revenue, 0) + ' revenue · ' +
-              item.units.toLocaleString() + ' units</p>' +
+            '<p class="rankrow__name">' + escapeHtml(item.name) +
+              ' ' + codeChipFor(item.name) + '</p>' +
+            '<p class="rankrow__meta"><span>' + money(item.revenue, 0) + ' revenue · ' +
+              item.units.toLocaleString() + ' units</span></p>' +
           '</div>' +
           '<span class="rankrow__margin">' + item.margin + '%</span>' +
         '</li>';
@@ -1770,7 +1789,8 @@
       return '<li class="soldrow">' +
         '<div class="soldrow__body">' +
           '<p class="soldrow__name">' + escapeHtml(l.medicine) + '</p>' +
-          '<p class="soldrow__meta">' + l.boxes + ' × ' + money(l.unitPrice) + '</p>' +
+          '<p class="soldrow__meta">' + codeChipFor(l.medicine) +
+            '<span>' + l.boxes + ' × ' + money(l.unitPrice) + '</span></p>' +
         '</div>' +
         '<span class="soldrow__total">' + money(l.total) + '</span>' +
         '</li>';
@@ -1851,6 +1871,7 @@
               '<p class="stockrow__name">' + escapeHtml(m.name) +
                 (m.strength ? ' <span class="stockrow__strength">' + escapeHtml(m.strength) + '</span>' : '') + '</p>' +
               '<p class="stockrow__meta">' +
+                codeChip(m.barcode) +
                 '<span>' + escapeHtml(V.formLabel(m.form)) + ' · ' + escapeHtml(V.packagingLabel(m.packaging)) + '</span>' +
                 '<span>' + money(m.price) + ' / unit</span>' +
                 (out ? '<span class="stockrow__warn">Out of stock</span>'
@@ -2087,8 +2108,9 @@
       return '<li class="rankrow">' +
         '<span class="rankrow__no">' + (i + 1) + '</span>' +
         '<div class="rankrow__body">' +
-          '<p class="rankrow__name">' + escapeHtml(t.name) + '</p>' +
-          '<p class="rankrow__meta">' + t.boxes + ' boxes · ' + money(t.revenue) + ' taken</p>' +
+          '<p class="rankrow__name">' + escapeHtml(t.name) +
+            ' ' + codeChipFor(t.name) + '</p>' +
+          '<p class="rankrow__meta"><span>' + t.boxes + ' boxes · ' + money(t.revenue) + ' taken</span></p>' +
         '</div>' +
         '<span class="rankrow__margin">' + money(t.profit) + '</span>' +
         '</li>';
@@ -2132,6 +2154,7 @@
     pricingFor = med;
     hideToast();
     $('#price-sheet-title').textContent = med.name;
+    $('#price-sheet-code').innerHTML = codeChip(med.barcode);
     priceForm.elements.price.value = med.price;
     priceForm.elements.cost.value = med.cost;
     $$('.field', priceForm).forEach(function (f) { f.classList.remove('is-bad'); });
