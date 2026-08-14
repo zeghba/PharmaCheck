@@ -24,7 +24,7 @@
     ],
     "android": {
       "package": "com.pharmacheck.app",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1A73E8"
@@ -54,7 +54,8 @@
           "backgroundColor": "#EEF4FB",
           "imageWidth": 180
         }
-      ]
+      ],
+      "./plugins/withOptionalCamera"
     ],
     "extra": {
       "eas": {
