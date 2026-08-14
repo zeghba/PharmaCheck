@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Platform, StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import webBundle from './src/webBundle.generated';
 import useOtaUpdates from './src/useOtaUpdates';
@@ -23,12 +24,13 @@ const BEFORE_LOAD = 'window.__PHARMACHECK_NATIVE__ = true; true;';
 const LIGHT_BG = '#EEF4FB';
 const SCANNER_BG = '#0A1420';
 
-export default function App() {
+function Shell() {
   const webRef = useRef(null);
   const [dark, setDark] = useState(false);
   const [screen, setScreen] = useState('dashboard');
   const [dismissed, setDismissed] = useState(false);
 
+  const insets = useSafeAreaInsets();
   const { isUpdateReady, applyUpdate } = useOtaUpdates();
 
   const onMessage = useCallback((event) => {
@@ -62,7 +64,21 @@ export default function App() {
   const background = dark ? SCANNER_BG : LIGHT_BG;
 
   return (
-    <View style={[styles.root, { backgroundColor: background }]}>
+    <View
+      style={[
+        styles.root,
+        {
+          backgroundColor: background,
+          // Android 15+ draws edge to edge, so the app owns the space behind
+          // the status and gesture bars. Inset the WebView rather than let the
+          // header slide under the clock.
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+          paddingLeft: insets.left,
+          paddingRight: insets.right,
+        },
+      ]}
+    >
       <StatusBar style={dark ? 'light' : 'dark'} backgroundColor={background} />
 
       <WebView
@@ -89,6 +105,14 @@ export default function App() {
         onDismiss={() => setDismissed(true)}
       />
     </View>
+  );
+}
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <Shell />
+    </SafeAreaProvider>
   );
 }
 
