@@ -45,6 +45,8 @@
     });
   }
 
+  function units(n) { return n + (Number(n) === 1 ? ' unit' : ' units'); }
+
   function ago(timestamp) {
     if (!timestamp) return '';
     var mins = Math.max(0, Math.round((Date.now() - timestamp) / 60000));
@@ -175,8 +177,8 @@
         '<li class="activity__row">' +
           '<span class="activity__icon"><svg class="icon"><use href="#i-pill"/></svg></span>' +
           '<span class="activity__body">' +
-            '<span class="activity__name">' + escapeHtml(p.medication) + '</span>' +
-            '<span class="activity__meta">' + escapeHtml(p.patient) + ' · ' + p.qty + ' units · ' +
+            '<span class="activity__name">' + escapeHtml(Store.summarise(p)) + '</span>' +
+            '<span class="activity__meta">' + escapeHtml(p.patient) + ' · ' + units(Store.unitsIn(p)) + ' · ' +
               ago(p.filledAt || p.createdAt) + '</span>' +
           '</span>' +
           '<span class="badge ' + (filled ? 'badge--green' : 'badge--amber') + '">' +
@@ -217,7 +219,8 @@
   var facing = 'environment';
   var flashOn = false;
   var scanner = new window.PharmaScanner.Scanner(video);
-  var pending = null;   // the decoded payload awaiting a decision
+  var pending = null;        // the decoded payload awaiting a decision
+  var barcodeIntent = null;  // 'sheet' | 'draft' when manual entry asked for a scan
 
   function setCamState(visible, opts) {
     var box = $('#cam-state');
@@ -225,7 +228,7 @@
     if (!visible) return;
     $('#cam-state-title').textContent = opts.title;
     $('#cam-state-body').textContent = opts.body;
-    $('#cam-state-icon').innerHTML = '<use href="' + (opts.icon || '#i-scan') + '"/>';
+    $('#cam-state-icon').innerHTML = '<use href="' + (opts.icon || '#ln-scan') + '"/>';
     $('#cam-state-actions').hidden = !opts.actions;
   }
 
@@ -253,8 +256,11 @@
     }).then(function () {
       camera.classList.add('is-live');
       setCamState(false);
-      $('#camera-source').textContent = scanner.engine() === 'native' ? 'Live camera' : 'Live camera · jsQR';
-      startScanning();
+      return scanner.negotiateFormats().then(function () {
+        $('#camera-source').textContent = scanner.canReadBarcodes()
+          ? 'QR + barcode' : 'QR only · jsQR';
+        startScanning();
+      });
     }).catch(function (err) {
       camera.classList.remove('is-live');
       var denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
@@ -290,7 +296,11 @@
       });
       return;
     }
-    $('#camera-hint').textContent = 'Align QR Code within the frame';
+    $('#camera-hint').textContent = barcodeIntent
+      ? 'Align the medicine barcode within the frame'
+      : scanner.canReadBarcodes()
+        ? 'Align a prescription QR or medicine barcode'
+        : 'Align QR Code within the frame';
     scanner.start(onDecoded, function (err) {
       toast(err.message || 'Scanning error');
     });
@@ -301,7 +311,9 @@
     scanSheet.setAttribute('aria-hidden', 'true');
     camera.classList.remove('is-locked');
     pending = null;
-    $('#camera-hint').textContent = 'Align QR Code within the frame';
+    $('#camera-hint').textContent = scanner.canReadBarcodes()
+      ? 'Align a prescription QR or medicine barcode'
+      : 'Align QR Code within the frame';
     if (stream) scanner.start(onDecoded, function () {});
   }
 
@@ -311,17 +323,38 @@
   });
 
   /* A code came off the camera. Work out what it is and show the result. */
-  function onDecoded(text) {
+  function onDecoded(hit) {
     scanner.stop();
     if (navigator.vibrate) navigator.vibrate(18);
     hideToast();
 
+    var parsed = window.PharmaScanner.parse(hit);
+
+    /* Manual entry asked for a medicine barcode: resolve it and go straight
+       back to the line editor rather than opening the dispensing sheet. */
+    if (barcodeIntent && parsed.kind === 'barcode') {
+      var med = Store.findByBarcode(parsed.barcode);
+      var intent = barcodeIntent;
+      barcodeIntent = null;
+      go('manual');
+      if (!med) {
+        toast('Barcode ' + parsed.barcode + ' is not in the catalogue');
+        openItemSheet(undefined, { medication: '' });
+        return;
+      }
+      openItemSheet(undefined, {
+        medication: med.name, strength: med.strength, form: med.form,
+        packaging: med.packaging, route: Store.defaultRoute(med.form)
+      });
+      toast(med.name + ' — ' + med.qty + ' in stock');
+      void intent;
+      return;
+    }
+
     camera.classList.add('is-locked');
     $('#camera-hint').textContent = 'Code detected';
 
-    var parsed = window.PharmaScanner.parse(text);
     pending = resolvePayload(parsed);
-
     renderScanSheet(pending);
     setTimeout(function () {
       scanSheet.classList.add('is-open');
@@ -342,6 +375,12 @@
       return { state: 'new', parsed: parsed };
     }
 
+    if (parsed.kind === 'barcode') {
+      var med = Store.findByBarcode(parsed.barcode);
+      return med ? { state: 'medicine', medicine: med, parsed: parsed }
+                 : { state: 'unknown-barcode', parsed: parsed };
+    }
+
     if (parsed.kind === 'code') {
       var found = Store.findByCode(parsed.code);
       if (!found) return { state: 'unknown-code', parsed: parsed };
@@ -360,56 +399,95 @@
     var badge = 'Code verified';
     var note = '';
     var canFill = false;
+    var lines = '';
 
-    if (result.state === 'unrecognised' || result.state === 'unknown-code') {
+    if (result.state === 'medicine') {
+      var m = result.medicine;
+      badge = 'Medicine identified';
+      $('#scan-code').textContent = p.format.toUpperCase().replace('_', '-');
+      rows.push(['Medicine', m.name]);
+      if (m.strength) rows.push(['Strength', m.strength]);
+      rows.push(['Form', V.formLabel(m.form)]);
+      rows.push(['Packaging', V.packagingLabel(m.packaging)]);
+      rows.push(['In stock', units(m.qty)]);
+      rows.push(['Barcode', m.barcode]);
+      note = Store.isLow(m)
+        ? 'Below the reorder level of ' + m.reorder + '.'
+        : 'Stock is healthy.';
+    } else if (result.state === 'unknown-barcode') {
+      badge = 'Barcode not recognised';
+      $('#scan-code').textContent = p.barcode;
+      rows.push(['Barcode', p.barcode]);
+      rows.push(['Format', p.format]);
+      note = 'No medicine in the catalogue carries this barcode.';
+    } else if (result.state === 'unrecognised' || result.state === 'unknown-code') {
       badge = 'Not a PharmaCheck code';
       $('#scan-code').textContent = '—';
       rows.push(['Contents', p.raw.length > 90 ? p.raw.slice(0, 90) + '…' : p.raw]);
       note = result.state === 'unknown-code'
         ? 'That code is not on file at this pharmacy.'
-        : 'This QR code does not carry a PharmaCheck prescription.';
+        : 'This code does not carry a PharmaCheck prescription.';
     } else {
       var src = result.record || p;
+      var items = src.items || [];
       $('#scan-code').textContent = src.code;
       rows.push(['Patient', src.patient]);
-      rows.push(['Medication', src.medication]);
-      rows.push(['Dosage', src.dosage]);
-      rows.push(['Quantity', src.qty + ' units']);
+      if (src.prescriber) rows.push(['Prescriber', src.prescriber]);
+      rows.push(['Medicines', items.length + (items.length === 1 ? ' line' : ' lines')]);
 
-      var med = Store.findMedicine(src.medication);
-      if (med) rows.push(['In stock', med.qty + ' units']);
+      lines = '<ul class="scanlines">' + items.map(function (it) {
+        var med = Store.findMedicine(it.medication);
+        var short = med ? med.qty + ' in stock' : 'not stocked';
+        var bad = !med || med.qty < it.qty;
+        var posology = [it.dose, it.frequency ? it.frequency.split(' — ')[0] : '',
+                        it.duration ? it.duration.split(' — ')[0] : ''].filter(Boolean).join(' · ');
+        return '<li class="scanline' + (bad ? ' scanline--bad' : '') + '">' +
+          '<p class="scanline__name">' + escapeHtml(it.medication) + ' ' + escapeHtml(it.strength || '') + '</p>' +
+          '<p class="scanline__meta">' + escapeHtml(V.formLabel(it.form)) + ' · ' + units(it.qty) + ' · ' +
+            escapeHtml(V.routeLabel(it.route)) + ' · ' + escapeHtml(short) + '</p>' +
+          (posology ? '<p class="scanline__pos">' + escapeHtml(posology) + '</p>' : '') +
+          '</li>';
+      }).join('') + '</ul>';
 
+      canFill = true;
       if (result.state === 'already-filled') {
         badge = 'Already dispensed';
         note = 'Filled ' + ago(result.record.filledAt) + '. Dispensing again will draw more stock.';
-        canFill = true;
       } else if (result.state === 'new') {
         badge = 'New prescription';
         note = 'Not yet on file here — filling it will record it and draw stock.';
-        canFill = true;
-      } else {
-        canFill = true;
       }
 
-      if (!med) {
-        note = src.medication + ' is not stocked at this pharmacy.';
+      // Every line must be available; a prescription dispenses whole or not at all.
+      var probe = { items: items };
+      var problems = Store.checkAvailability(probe);
+      if (problems.length) {
         canFill = false;
-      } else if (med.qty < src.qty) {
-        note = 'Only ' + med.qty + ' units in stock; ' + src.qty + ' needed.';
-        canFill = false;
+        note = problems.length === 1
+          ? problems[0].message
+          : problems.length + ' lines cannot be dispensed from current stock.';
       }
     }
 
     $('#scan-badge-text').textContent = badge;
-    $('#scan-badge').className = 'sheet__badge' +
-      (canFill ? '' : ' sheet__badge--warn');
+    $('#scan-badge').className = 'sheet__badge' + (canFill || result.state === 'medicine' ? '' : ' sheet__badge--warn');
     $('#scan-details').innerHTML = rows.map(function (r) {
       return '<div class="kv__row"><dt>' + escapeHtml(r[0]) + '</dt><dd>' + escapeHtml(r[1]) + '</dd></div>';
-    }).join('');
+    }).join('') + lines;
     $('#scan-note').hidden = !note;
     $('#scan-note').textContent = note;
-    $('#scan-fill').disabled = !canFill;
-    $('#scan-fill').textContent = result.state === 'already-filled' ? 'Dispense Again' : 'Fill Prescription';
+
+    var fill = $('#scan-fill');
+    if (result.state === 'medicine') {
+      fill.disabled = false;
+      fill.textContent = 'Add to prescription';
+    } else if (result.state === 'unknown-barcode' || result.state === 'unrecognised' || result.state === 'unknown-code') {
+      fill.disabled = true;
+      fill.textContent = 'Fill Prescription';
+    } else {
+      fill.disabled = !canFill;
+      fill.textContent = result.state === 'already-filled' ? 'Dispense Again' : 'Fill Prescription';
+    }
   }
 
   $('#scan-dismiss').addEventListener('click', resumeScanning);
@@ -417,12 +495,24 @@
   $('#scan-fill').addEventListener('click', function () {
     if (!pending) return;
 
+    // A scanned medicine box feeds the manual-entry line editor.
+    if (pending.state === 'medicine') {
+      var m = pending.medicine;
+      resumeScanning();
+      go('manual');
+      openItemSheet(undefined, {
+        medication: m.name, strength: m.strength, form: m.form,
+        packaging: m.packaging, route: Store.defaultRoute(m.form)
+      });
+      return;
+    }
+
     var record = pending.record;
     if (!record) {
       var p = pending.parsed;
       record = Store.createPrescription({
-        code: p.code, patient: p.patient, medication: p.medication,
-        dosage: p.dosage, qty: p.qty, source: 'scan'
+        code: p.code, patient: p.patient, prescriber: p.prescriber,
+        items: p.items, source: 'scan'
       });
     }
 
@@ -433,7 +523,7 @@
     }
 
     resumeScanning();
-    toast(record.code + ' filled for ' + record.patient);
+    toast(record.code + ' filled · ' + units(Store.unitsIn(record)) + ' dispensed');
     renderDashboard();
     renderStock();
     go('dashboard');
@@ -443,9 +533,9 @@
   $('#shutter').addEventListener('click', function () {
     if (camera.classList.contains('is-locked')) return;
     if (!stream) { openCamera(); return; }
-    scanner.scanOnce().then(function (text) {
-      if (text) onDecoded(text);
-      else toast('No QR code visible — hold the code inside the frame');
+    scanner.scanOnce().then(function (hit) {
+      if (hit) onDecoded(hit);
+      else toast('Nothing readable in frame — hold the code steady inside it');
     }).catch(function (err) {
       toast(err.message || 'Could not read the frame');
     });
@@ -485,13 +575,37 @@
   });
 
   /* ================================================================== *
-   * 3. Manual entry & code generator
+   * 3. Manual entry — multi-medicine prescriptions
    * ================================================================== */
+  var V = window.PharmaVocab;
   var form = $('#rx-form');
+  var draft = [];          // prescription lines being composed
+  var editingIndex = -1;   // which line the sheet is editing, -1 = new
   var lastRx = null;
 
-  function setFieldError(name, message) {
-    var field = form.elements[name].closest('.field');
+  function fillSelect(el, list) {
+    el.innerHTML = list.map(function (o) {
+      return '<option value="' + escapeHtml(o.id) + '">' + escapeHtml(o.label) + '</option>';
+    }).join('');
+  }
+  function fillDatalist(el, values) {
+    el.innerHTML = values.map(function (v) {
+      return '<option value="' + escapeHtml(v) + '"></option>';
+    }).join('');
+  }
+
+  fillSelect($('#ln-form'), V.FORMS);
+  fillSelect($('#ln-packaging'), V.PACKAGINGS);
+  fillSelect($('#ln-route'), V.ROUTES);
+  fillDatalist($('#dose-suggestions'), V.DOSES);
+  fillDatalist($('#freq-suggestions'), V.FREQUENCIES);
+  fillDatalist($('#dur-suggestions'), V.DURATIONS);
+
+  function setFieldError(name, message, scope) {
+    var root = scope || form;
+    var input = root.elements[name];
+    if (!input) return;
+    var field = input.closest('.field');
     field.classList.toggle('is-bad', Boolean(message));
     var slot = $('[data-error-for="' + name + '"]', field);
     if (slot) slot.textContent = message || '';
@@ -501,33 +615,181 @@
     if (event.target.name) setFieldError(event.target.name, '');
   });
 
-  form.addEventListener('submit', function (event) {
-    event.preventDefault();
+  function renderDraft() {
+    $('#items-count').textContent = draft.length + (draft.length === 1 ? ' line' : ' lines');
+    $('#items-empty').hidden = draft.length > 0;
 
-    var values = {
-      patient: form.elements.patient.value.trim(),
-      medication: form.elements.medication.value.trim(),
-      dosage: form.elements.dosage.value.trim(),
-      quantity: form.elements.quantity.value.trim()
+    $('#item-list').innerHTML = draft.map(function (it, i) {
+      var med = Store.findMedicine(it.medication);
+      var short = [V.formLabel(it.form), V.packagingLabel(it.packaging)].filter(Boolean).join(' · ');
+      var posology = [it.dose, it.frequency ? it.frequency.split(' — ')[0] : '', it.duration ? it.duration.split(' — ')[0] : '']
+        .filter(Boolean).join(' · ');
+      var shortfall = med && med.qty < it.qty;
+      return '' +
+        '<li class="itemcard' + (shortfall || !med ? ' itemcard--warn' : '') + '">' +
+          '<div class="itemcard__head">' +
+            '<p class="itemcard__name">' + escapeHtml(it.medication) +
+              (it.strength ? ' <span class="itemcard__strength">' + escapeHtml(it.strength) + '</span>' : '') + '</p>' +
+            '<div class="itemcard__tools">' +
+              '<button class="itemcard__btn" type="button" data-edit="' + i + '" aria-label="Edit line">' +
+                '<svg class="icon icon--xs"><use href="#i-pen"/></svg></button>' +
+              '<button class="itemcard__btn" type="button" data-remove="' + i + '" aria-label="Remove line">' +
+                '<svg class="icon icon--xs"><use href="#i-close"/></svg></button>' +
+            '</div>' +
+          '</div>' +
+          '<p class="itemcard__meta">' + escapeHtml(short) + ' · ' + units(it.qty) + ' · ' +
+            escapeHtml(V.routeLabel(it.route)) + '</p>' +
+          (posology ? '<p class="itemcard__pos">' + escapeHtml(posology) + '</p>' : '') +
+          (!med ? '<p class="itemcard__warn">Not stocked here</p>'
+                : shortfall ? '<p class="itemcard__warn">Only ' + med.qty + ' in stock</p>' : '') +
+        '</li>';
+    }).join('');
+  }
+
+  $('#item-list').addEventListener('click', function (event) {
+    var edit = event.target.closest('[data-edit]');
+    if (edit) { openItemSheet(Number(edit.dataset.edit)); return; }
+    var remove = event.target.closest('[data-remove]');
+    if (remove) {
+      draft.splice(Number(remove.dataset.remove), 1);
+      renderDraft();
+      toast('Line removed');
+    }
+  });
+
+  /* ---- line editor sheet ---- */
+  var itemSheet = $('#item-sheet');
+  var itemForm = $('#item-form');
+
+  function openItemSheet(index, prefill) {
+    editingIndex = index === undefined ? -1 : index;
+    hideToast();
+    itemForm.reset();
+    $$('.field', itemForm).forEach(function (f) { f.classList.remove('is-bad'); });
+
+    var it = editingIndex >= 0 ? draft[editingIndex] : (prefill || null);
+    if (it) {
+      itemForm.elements.medication.value = it.medication || '';
+      itemForm.elements.strength.value = it.strength || '';
+      itemForm.elements.qty.value = it.qty || '';
+      itemForm.elements.form.value = it.form || 'comprime';
+      itemForm.elements.packaging.value = it.packaging || 'boite';
+      itemForm.elements.route.value = it.route || 'orale';
+      itemForm.elements.dose.value = it.dose || '';
+      itemForm.elements.frequency.value = it.frequency || '';
+      itemForm.elements.duration.value = it.duration || '';
+    }
+
+    $('#item-sheet-title').textContent = editingIndex >= 0 ? 'Edit medicine' : 'Add medicine';
+    $('#item-save').textContent = editingIndex >= 0 ? 'Save line' : 'Add line';
+    reflectStock();
+
+    scrim.hidden = false;
+    requestAnimationFrame(function () { scrim.classList.add('is-on'); });
+    itemSheet.classList.add('is-open');
+    itemSheet.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeItemSheet() {
+    scrim.classList.remove('is-on');
+    itemSheet.classList.remove('is-open');
+    itemSheet.setAttribute('aria-hidden', 'true');
+    setTimeout(function () { if (!stockSheet.classList.contains('is-open')) scrim.hidden = true; }, 300);
+    editingIndex = -1;
+  }
+
+  /* Selecting a catalogue medicine fills in what the pharmacy already knows
+     about it, so the pharmacist types the posology rather than the packaging. */
+  function applyCatalogue(name) {
+    var med = Store.findMedicine(name);
+    if (!med) return false;
+    if (!itemForm.elements.strength.value) itemForm.elements.strength.value = med.strength || '';
+    itemForm.elements.form.value = med.form || 'comprime';
+    itemForm.elements.packaging.value = med.packaging || 'boite';
+    itemForm.elements.route.value = Store.defaultRoute(med.form);
+    return true;
+  }
+
+  function reflectStock() {
+    var med = Store.findMedicine(itemForm.elements.medication.value);
+    var note = $('#item-stock');
+    if (!med) { note.hidden = true; return; }
+    var want = Number(itemForm.elements.qty.value) || 0;
+    note.hidden = false;
+    note.textContent = units(med.qty) + ' in stock' +
+      (want > med.qty ? ' — short by ' + (want - med.qty) : '') +
+      ' · barcode ' + med.barcode;
+  }
+
+  itemForm.addEventListener('input', function (event) {
+    if (event.target.name) setFieldError(event.target.name, '', itemForm);
+    if (event.target.name === 'medication') applyCatalogue(event.target.value);
+    if (event.target.name === 'medication' || event.target.name === 'qty') reflectStock();
+  });
+
+  itemForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    var it = {
+      medication: itemForm.elements.medication.value.trim(),
+      strength: itemForm.elements.strength.value.trim(),
+      form: itemForm.elements.form.value,
+      packaging: itemForm.elements.packaging.value,
+      qty: Number(itemForm.elements.qty.value),
+      route: itemForm.elements.route.value,
+      dose: itemForm.elements.dose.value.trim(),
+      frequency: itemForm.elements.frequency.value.trim(),
+      duration: itemForm.elements.duration.value.trim()
     };
 
     var ok = true;
-    if (!values.patient) { setFieldError('patient', 'Patient name is required'); ok = false; }
-    if (!values.medication) { setFieldError('medication', 'Medication name is required'); ok = false; }
-    if (!values.dosage) { setFieldError('dosage', 'Dosage is required'); ok = false; }
-    if (!values.quantity || Number(values.quantity) < 1) {
-      setFieldError('quantity', 'Enter a quantity of 1 or more'); ok = false;
+    if (!it.medication) { setFieldError('medication', 'Medicine is required', itemForm); ok = false; }
+    if (!it.qty || it.qty < 1) { setFieldError('qty', 'Enter 1 or more', itemForm); ok = false; }
+    if (!it.dose) { setFieldError('dose', 'Dose is required', itemForm); ok = false; }
+    if (!it.frequency) { setFieldError('frequency', 'Frequency is required', itemForm); ok = false; }
+    if (!ok) return;
+
+    if (editingIndex >= 0) draft[editingIndex] = it;
+    else draft.push(it);
+
+    closeItemSheet();
+    renderDraft();
+    toast(editingIndex >= 0 ? 'Line updated' : it.medication + ' added');
+  });
+
+  $('#item-add').addEventListener('click', function () { openItemSheet(); });
+  $('#item-cancel').addEventListener('click', closeItemSheet);
+
+  /* Barcode entry points: from the screen, and from inside the line sheet. */
+  $('#item-scan').addEventListener('click', function () { beginBarcodeLookup(false); });
+  $('#ln-scan').addEventListener('click', function () { beginBarcodeLookup(true); });
+
+  function beginBarcodeLookup(fromSheet) {
+    barcodeIntent = fromSheet ? 'sheet' : 'draft';
+    if (fromSheet) closeItemSheet();
+    go('scanner');
+    toast('Point the camera at the medicine barcode');
+  }
+
+  /* ---- generate the prescription code ---- */
+  $('#rx-generate').addEventListener('click', function () {
+    var patient = form.elements.patient.value.trim();
+    var prescriber = form.elements.prescriber.value.trim();
+
+    if (!patient) {
+      setFieldError('patient', 'Patient name is required');
+      toast('Enter the patient name');
+      return;
     }
-    if (!ok) { toast('Please complete the highlighted fields'); return; }
+    if (!draft.length) {
+      toast('Add at least one medicine');
+      return;
+    }
 
     var record = Store.createPrescription({
-      patient: values.patient, medication: values.medication,
-      dosage: values.dosage, qty: Number(values.quantity), source: 'manual'
+      patient: patient, prescriber: prescriber, items: draft.slice(), source: 'manual'
     });
 
-    var payload = ['PC1', record.code, record.patient, record.medication,
-                   record.dosage, record.qty].join('|');
-
+    var payload = buildPayload(record);
     try {
       $('#qr-canvas').innerHTML = window.QRCodeGen.toSvg(payload, { quietZone: 2 });
     } catch (err) {
@@ -537,18 +799,42 @@
 
     lastRx = { record: record, payload: payload };
     $('#qr-code-text').textContent = record.code;
+    $('#qr-meta').textContent = record.items.length +
+      (record.items.length === 1 ? ' medicine' : ' medicines') + ' · ' +
+      units(Store.unitsIn(record)) + ' total\nIssued for ' + record.patient;
 
-    var med = Store.findMedicine(record.medication);
-    $('#qr-meta').textContent =
-      record.medication + ' · ' + record.dosage + ' · ' + record.qty + ' units\n' +
-      (med ? 'In stock: ' + med.qty + ' units' : 'Not stocked at this pharmacy');
+    $('#qr-lines').innerHTML = record.items.map(function (it) {
+      return '<li><b>' + escapeHtml(it.medication) + '</b> ' + escapeHtml(it.strength || '') +
+        '<br>' + escapeHtml(V.formLabel(it.form)) + ' · ' + it.qty + ' units · ' +
+        escapeHtml(V.routeLabel(it.route)) +
+        (it.dose ? '<br>' + escapeHtml(it.dose) : '') +
+        (it.frequency ? ' · ' + escapeHtml(it.frequency.split(' — ')[0]) : '') +
+        (it.duration ? ' · ' + escapeHtml(it.duration.split(' — ')[0]) : '') +
+        '</li>';
+    }).join('');
 
     $('#qr-result').hidden = false;
     $('#manual-hint').hidden = true;
     $('#qr-result').scrollIntoView({ behavior: 'smooth', block: 'end' });
     toast('Prescription ' + record.code + ' created — scan it to dispense');
+
+    draft = [];
+    renderDraft();
+    form.reset();
     renderDashboard();
   });
+
+  /* PC2 payload: one pipe-delimited field per line, tildes inside a line. */
+  function buildPayload(record) {
+    var head = ['PC2', record.code, record.patient, record.prescriber || ''];
+    var lines = record.items.map(function (it) {
+      return [it.medication, it.strength, it.form, it.packaging, it.qty,
+              it.route, it.dose, it.frequency, it.duration]
+        .map(function (v) { return String(v == null ? '' : v).replace(/[|~]/g, ' '); })
+        .join('~');
+    });
+    return head.concat(lines).join('|');
+  }
 
   $('#qr-print').addEventListener('click', function () {
     if (!lastRx) return;
@@ -564,16 +850,25 @@
 
   function printCode() {
     var r = lastRx.record;
-    function row(label, value) {
-      return '<div><dt>' + label + '</dt><dd>' + escapeHtml(value) + '</dd></div>';
-    }
+    var rows = r.items.map(function (it, i) {
+      return '<div class="ps-item">' +
+        '<p class="ps-item__name">' + (i + 1) + '. ' + escapeHtml(it.medication) + ' ' + escapeHtml(it.strength || '') + '</p>' +
+        '<p class="ps-item__line">' + escapeHtml(V.formLabel(it.form)) + ' — ' + escapeHtml(V.packagingLabel(it.packaging)) +
+          ' — ' + it.qty + ' units</p>' +
+        '<p class="ps-item__line">' + escapeHtml(it.dose) + ', ' + escapeHtml(it.frequency) +
+          (it.duration ? ', ' + escapeHtml(it.duration) : '') +
+          ' — voie ' + escapeHtml(V.routeLabel(it.route)) + '</p>' +
+        '</div>';
+    }).join('');
+
     $('#printsheet').innerHTML =
       '<h1>PharmaCheck Prescription</h1>' +
       '<p class="ps-sub">' + escapeHtml(r.code) + '</p>' +
       window.QRCodeGen.toSvg(lastRx.payload, { quietZone: 2 }) +
-      '<dl>' + row('Patient', r.patient) + row('Medication', r.medication) +
-      row('Dosage', r.dosage) + row('Quantity', r.qty) +
-      row('Issued', new Date(r.createdAt).toLocaleString()) + '</dl>';
+      '<dl><div><dt>Patient</dt><dd>' + escapeHtml(r.patient) + '</dd></div>' +
+      (r.prescriber ? '<div><dt>Prescriber</dt><dd>' + escapeHtml(r.prescriber) + '</dd></div>' : '') +
+      '<div><dt>Issued</dt><dd>' + escapeHtml(new Date(r.createdAt).toLocaleString()) + '</dd></div></dl>' +
+      '<div class="ps-items">' + rows + '</div>';
     window.print();
   }
 

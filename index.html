@@ -43,6 +43,7 @@
   <symbol id="i-dose" viewBox="0 0 24 24"><path d="M12 3v4M8 7h8l-1 13.2a1 1 0 0 1-1 .8h-4a1 1 0 0 1-1-.8L8 7Z"/><path d="M8.4 13h7.2"/></symbol>
   <symbol id="i-hash" viewBox="0 0 24 24"><path d="M10 3 8 21M16 3l-2 18M3.5 8.5h17M3 15.5h17"/></symbol>
   <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.4 2"/></symbol>
+  <symbol id="i-barcode" viewBox="0 0 24 24"><path d="M3 6V4.5A1.5 1.5 0 0 1 4.5 3H6M18 3h1.5A1.5 1.5 0 0 1 21 4.5V6M21 18v1.5a1.5 1.5 0 0 1-1.5 1.5H18M6 21H4.5A1.5 1.5 0 0 1 3 19.5V18"/><path d="M6.5 7.5v9M10 7.5v9M13.5 7.5v9M17 7.5v9"/></symbol>
   <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z"/></symbol>
 </svg>
 
@@ -218,7 +219,7 @@
           </button>
           <div>
             <h1 class="apphead__title apphead__title--sm">Manual Entry</h1>
-            <p class="apphead__sub">Create a prescription code by hand</p>
+            <p class="apphead__sub">Build a prescription, one medicine per line</p>
           </div>
         </header>
 
@@ -233,43 +234,41 @@
           </div>
 
           <div class="field">
-            <label class="field__label" for="f-medication">Medication Name</label>
+            <label class="field__label" for="f-prescriber">Prescriber <span class="field__opt">optional</span></label>
             <div class="field__control">
-              <svg class="icon field__icon"><use href="#i-pill"/></svg>
-              <input id="f-medication" name="medication" type="text" autocomplete="off" placeholder="e.g. Amoxicillin 500mg" list="med-suggestions">
-            </div>
-            <datalist id="med-suggestions"></datalist>
-            <p class="field__error" data-error-for="medication"></p>
-          </div>
-
-          <div class="field-row">
-            <div class="field">
-              <label class="field__label" for="f-dosage">Dosage</label>
-              <div class="field__control">
-                <svg class="icon field__icon"><use href="#i-dose"/></svg>
-                <input id="f-dosage" name="dosage" type="text" autocomplete="off" placeholder="1 cap, 3× daily">
-              </div>
-              <p class="field__error" data-error-for="dosage"></p>
-            </div>
-            <div class="field">
-              <label class="field__label" for="f-quantity">Quantity</label>
-              <div class="field__control">
-                <svg class="icon field__icon"><use href="#i-hash"/></svg>
-                <input id="f-quantity" name="quantity" type="number" inputmode="numeric" min="1" step="1" placeholder="21">
-              </div>
-              <p class="field__error" data-error-for="quantity"></p>
+              <svg class="icon field__icon"><use href="#i-pen"/></svg>
+              <input id="f-prescriber" name="prescriber" type="text" autocomplete="off" placeholder="e.g. Dr. E. Okafor">
             </div>
           </div>
-
-          <button class="btn btn--primary btn--block btn--lg" type="submit">
-            Generate Prescription Code
-          </button>
         </form>
+
+        <div class="section-head">
+          <h2 class="section-title">Medicines</h2>
+          <span class="section-note" id="items-count">0 lines</span>
+        </div>
+
+        <ul class="itemlist" id="item-list"></ul>
+        <p class="emptystate emptystate--compact" id="items-empty">
+          No medicines yet. Add at least one to generate a code.
+        </p>
+
+        <div class="stackbtns">
+          <button class="btn btn--soft btn--block" type="button" id="item-add">
+            <svg class="icon icon--xs"><use href="#i-plus"/></svg> Add medicine
+          </button>
+          <button class="btn btn--soft btn--block" type="button" id="item-scan">
+            <svg class="icon icon--xs"><use href="#i-barcode"/></svg> Scan medicine barcode
+          </button>
+        </div>
+
+        <button class="btn btn--primary btn--block btn--lg" type="button" id="rx-generate">
+          Generate Prescription Code
+        </button>
 
         <p class="hintnote" id="manual-hint">
           <svg class="icon icon--xs"><use href="#i-scan"/></svg>
-          The generated code carries the prescription details, so it can be
-          scanned at collection without looking anything up.
+          The code carries every line of the prescription, so scanning it at
+          collection shows the full list without looking anything up.
         </p>
 
         <div class="card qrcard" id="qr-result" hidden>
@@ -282,6 +281,7 @@
           </div>
           <div class="qrcard__frame" id="qr-canvas"></div>
           <p class="qrcard__meta" id="qr-meta"></p>
+          <ul class="qrcard__lines" id="qr-lines"></ul>
           <div class="qrcard__tools">
             <button class="btn btn--soft" type="button" id="qr-print">
               <svg class="icon icon--xs"><use href="#i-share"/></svg> Print / Share
@@ -420,6 +420,98 @@
       </form>
     </div>
 
+    <!-- ===================== PRESCRIPTION LINE SHEET ===================== -->
+    <div class="sheet sheet--modal sheet--tall" id="item-sheet" aria-hidden="true" role="dialog" aria-label="Prescription line">
+      <div class="sheet__grab"></div>
+      <h2 class="sheet__title" id="item-sheet-title">Add medicine</h2>
+      <form id="item-form" novalidate>
+        <div class="sheetscroll">
+          <div class="field">
+            <label class="field__label" for="ln-name">Medicine</label>
+            <div class="field__control">
+              <svg class="icon field__icon"><use href="#i-pill"/></svg>
+              <input id="ln-name" name="medication" type="text" list="med-suggestions" autocomplete="off" placeholder="e.g. Amoxicillin 500mg">
+              <button class="field__action" type="button" id="ln-scan" aria-label="Scan medicine barcode">
+                <svg class="icon icon--xs"><use href="#i-barcode"/></svg>
+              </button>
+            </div>
+            <datalist id="med-suggestions"></datalist>
+            <p class="field__error" data-error-for="medication"></p>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field__label" for="ln-strength">Strength</label>
+              <div class="field__control">
+                <input id="ln-strength" name="strength" type="text" autocomplete="off" placeholder="500 mg">
+              </div>
+            </div>
+            <div class="field">
+              <label class="field__label" for="ln-qty">Quantity</label>
+              <div class="field__control">
+                <input id="ln-qty" name="qty" type="number" inputmode="numeric" min="1" step="1" placeholder="21">
+              </div>
+              <p class="field__error" data-error-for="qty"></p>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="ln-form">Pharmaceutical form</label>
+            <div class="field__control">
+              <select id="ln-form" name="form"></select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="ln-packaging">Packaging</label>
+            <div class="field__control">
+              <select id="ln-packaging" name="packaging"></select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="ln-route">Route of administration</label>
+            <div class="field__control">
+              <select id="ln-route" name="route"></select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="ln-dose">Dose</label>
+            <div class="field__control">
+              <input id="ln-dose" name="dose" type="text" list="dose-suggestions" autocomplete="off" placeholder="1 comprimé">
+            </div>
+            <datalist id="dose-suggestions"></datalist>
+            <p class="field__error" data-error-for="dose"></p>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="ln-frequency">Frequency</label>
+            <div class="field__control">
+              <input id="ln-frequency" name="frequency" type="text" list="freq-suggestions" autocomplete="off" placeholder="3 fois/jour — three times daily">
+            </div>
+            <datalist id="freq-suggestions"></datalist>
+            <p class="field__error" data-error-for="frequency"></p>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="ln-duration">Duration</label>
+            <div class="field__control">
+              <input id="ln-duration" name="duration" type="text" list="dur-suggestions" autocomplete="off" placeholder="7 jours — 7 days">
+            </div>
+            <datalist id="dur-suggestions"></datalist>
+          </div>
+
+          <p class="sheet__note" id="item-stock" hidden></p>
+        </div>
+
+        <div class="sheet__actions">
+          <button class="btn btn--ghost" type="button" id="item-cancel">Cancel</button>
+          <button class="btn btn--primary" type="submit" id="item-save">Add line</button>
+        </div>
+      </form>
+    </div>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
   </div>
 </div>
@@ -429,6 +521,7 @@
 
 <script src="js/qr.js"></script>
 <script src="js/vendor/jsQR.min.js"></script>
+<script src="js/vocab.js"></script>
 <script src="js/store.js"></script>
 <script src="js/scanner.js"></script>
 <script src="js/app.js"></script>

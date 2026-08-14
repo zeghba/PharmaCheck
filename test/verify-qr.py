@@ -37,13 +37,18 @@ CASES = [
     "hello",
     "PC-2024-0001",
     "PHARMACHECK|RX|SARAH|AMOXICILLIN 500MG|3x/day|21",
-    "PC|RX-88213|Patient: Maria Gonzalez|Med: Atorvastatin 20mg|"
-    "Dose: 1 tablet nightly|Qty: 30|Issued: 2026-08-14",
     "Ünïcödé påtiënt nàme — 30mg",
     "A" * 40,
     "B" * 90,
     "C" * 150,
-    "D" * 211,  # version 10, the largest payload supported
+    "D" * 211,
+    # Multi-medicine prescriptions push well past the old version-10 ceiling.
+    "E" * 300,
+    "F" * 500,
+    "G" * 900,
+    "H" * 1400,
+    "I" * 1800,
+    "J" * 2331,   # version 40, the largest payload supported
 ]
 
 NODE_SCRIPT = """

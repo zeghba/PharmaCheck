@@ -1412,3 +1412,120 @@ html.is-native .toast { bottom: calc(var(--tab-h) + 14px + env(safe-area-inset-b
   font-variant-numeric: tabular-nums;
 }
 .buildline b { font-weight: 700; color: var(--ink-2); }
+
+/* ================= PRESCRIPTION LINES (manual entry) ================= */
+.field__opt {
+  font-weight: 500;
+  color: var(--muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.field__action {
+  position: absolute;
+  right: 6px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--blue-100);
+  color: var(--blue-700);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.field__action:active { transform: scale(.92); }
+
+.field__control select {
+  width: 100%;
+  border: 0;
+  background: none;
+  outline: none;
+  padding: 14px 14px 14px 14px;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 550;
+  color: var(--ink);
+  border-radius: 13px;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237A8CA1' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  padding-right: 36px;
+}
+
+.itemlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.itemcard {
+  background: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-sm);
+  padding: 13px 14px;
+  border-left: 3px solid var(--blue-500);
+  animation: screen-in .22s ease;
+}
+.itemcard--warn { border-left-color: var(--red); }
+.itemcard__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.itemcard__name { margin: 0; font-size: 14.5px; font-weight: 680; letter-spacing: -.15px; }
+.itemcard__strength { font-weight: 600; color: var(--muted); font-size: 12.5px; }
+.itemcard__tools { display: flex; gap: 4px; flex: none; }
+.itemcard__btn {
+  width: 28px; height: 28px;
+  border: 0; border-radius: 9px;
+  background: var(--blue-50);
+  color: var(--blue-700);
+  display: grid; place-items: center; cursor: pointer;
+}
+.itemcard__btn:active { transform: scale(.9); }
+.itemcard__meta { margin: 5px 0 0; font-size: 11.5px; color: var(--muted); }
+.itemcard__pos { margin: 3px 0 0; font-size: 11.5px; color: var(--ink-2); font-weight: 600; }
+.itemcard__warn { margin: 5px 0 0; font-size: 11.5px; color: var(--red); font-weight: 700; }
+
+.emptystate--compact { padding: 18px 12px; font-size: 13px; }
+.stackbtns { display: flex; flex-direction: column; gap: 9px; margin: 14px 0 16px; }
+
+/* Tall sheet with its own scroll region, for the long line form */
+.sheet--tall { max-height: 88%; display: flex; flex-direction: column; }
+.sheet--tall form { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.sheetscroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 2px 2px 4px;
+  scrollbar-width: none;
+}
+.sheetscroll::-webkit-scrollbar { display: none; }
+
+/* Scanned prescription lines inside the result sheet */
+.scanlines { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.scanline {
+  background: var(--blue-50);
+  border-radius: 12px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--blue-500);
+}
+.scanline--bad { background: var(--red-bg); border-left-color: var(--red); }
+.scanline__name { margin: 0; font-size: 13.5px; font-weight: 680; }
+.scanline__meta { margin: 3px 0 0; font-size: 11.5px; color: var(--muted); }
+.scanline__pos { margin: 3px 0 0; font-size: 11.5px; color: var(--ink-2); font-weight: 600; }
+
+/* Generated-code line list */
+.qrcard__lines { list-style: none; margin: 12px 0 0; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 8px; }
+.qrcard__lines li {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  background: var(--blue-50);
+  border-radius: 10px;
+  padding: 9px 11px;
+}
+.qrcard__lines b { color: var(--ink); font-weight: 680; font-size: 12.5px; }
+
+@media print {
+  .printsheet .ps-items { max-width: 340px; margin: 20px auto 0; text-align: left; }
+  .printsheet .ps-item { padding: 8px 0; border-bottom: 1px solid #ddd; }
+  .printsheet .ps-item__name { margin: 0 0 3px; font-size: 13px; font-weight: 700; }
+  .printsheet .ps-item__line { margin: 0; font-size: 11.5px; color: #444; }
+}

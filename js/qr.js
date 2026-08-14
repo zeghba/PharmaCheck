@@ -19,32 +19,37 @@
    * [ecCodewordsPerBlock, blocksInGroup1, dataPerBlock1, blocksInGroup2, dataPerBlock2]
    * ------------------------------------------------------------------ */
   var EC_TABLE_M = {
-    1: [10, 1, 16, 0, 0],
-    2: [16, 1, 28, 0, 0],
-    3: [26, 1, 44, 0, 0],
-    4: [18, 2, 32, 0, 0],
-    5: [24, 2, 43, 0, 0],
-    6: [16, 4, 27, 0, 0],
-    7: [18, 4, 31, 0, 0],
-    8: [22, 2, 38, 2, 39],
-    9: [22, 3, 36, 2, 37],
-    10: [26, 4, 43, 1, 44]
+    1: [10, 1, 16, 0, 0],    2: [16, 1, 28, 0, 0],    3: [26, 1, 44, 0, 0],
+    4: [18, 2, 32, 0, 0],    5: [24, 2, 43, 0, 0],    6: [16, 4, 27, 0, 0],
+    7: [18, 4, 31, 0, 0],    8: [22, 2, 38, 2, 39],   9: [22, 3, 36, 2, 37],
+    10: [26, 4, 43, 1, 44],  11: [30, 1, 50, 4, 51],  12: [22, 6, 36, 2, 37],
+    13: [22, 8, 37, 1, 38],  14: [24, 4, 40, 5, 41],  15: [24, 5, 41, 5, 42],
+    16: [28, 7, 45, 3, 46],  17: [28, 10, 46, 1, 47], 18: [26, 9, 43, 4, 44],
+    19: [26, 3, 44, 11, 45], 20: [26, 3, 41, 13, 42], 21: [26, 17, 42, 0, 0],
+    22: [28, 17, 46, 0, 0],  23: [28, 4, 47, 14, 48], 24: [28, 6, 45, 14, 46],
+    25: [28, 8, 47, 13, 48], 26: [28, 19, 46, 4, 47], 27: [28, 22, 45, 3, 46],
+    28: [28, 3, 45, 23, 46], 29: [28, 21, 45, 7, 46], 30: [28, 19, 47, 10, 48],
+    31: [28, 2, 46, 29, 47], 32: [28, 10, 46, 23, 47], 33: [28, 14, 46, 21, 47],
+    34: [28, 14, 46, 23, 47], 35: [28, 12, 47, 26, 48], 36: [28, 6, 47, 34, 48],
+    37: [28, 29, 46, 14, 47], 38: [28, 13, 46, 32, 47], 39: [28, 40, 47, 7, 48],
+    40: [28, 18, 47, 31, 48]
   };
 
-  var ALIGNMENT = {
-    1: [],
-    2: [6, 18],
-    3: [6, 22],
-    4: [6, 26],
-    5: [6, 30],
-    6: [6, 34],
-    7: [6, 22, 38],
-    8: [6, 24, 42],
-    9: [6, 26, 46],
-    10: [6, 28, 50]
-  };
+  /* Alignment-pattern centres, per ISO/IEC 18004 annex E. Computed rather
+     than tabulated so all 40 versions are covered without a wall of data. */
+  function alignmentPositions(version) {
+    if (version === 1) return [];
+    var count = Math.floor(version / 7) + 2;
+    var size = version * 4 + 17;
+    var step = version === 32
+      ? 26
+      : Math.ceil((size - 13) / (2 * count - 2)) * 2;
+    var out = [6];
+    for (var pos = size - 7; out.length < count; pos -= step) out.splice(1, 0, pos);
+    return out;
+  }
 
-  var MAX_VERSION = 10;
+  var MAX_VERSION = 40;
 
   function dataCodewords(version) {
     var t = EC_TABLE_M[version];
@@ -265,7 +270,7 @@
     // Alignment patterns. Every combination of centre coordinates is used
     // except the three that would land on a finder pattern; the ones that
     // straddle a timing line legitimately overwrite it.
-    var positions = ALIGNMENT[version];
+    var positions = alignmentPositions(version);
     var last = positions.length - 1;
     for (var a = 0; a < positions.length; a++) {
       for (var b = 0; b < positions.length; b++) {

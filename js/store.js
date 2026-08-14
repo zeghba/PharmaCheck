@@ -4,29 +4,48 @@
    One source of truth for medicines and prescriptions, persisted to
    localStorage. Every figure the dashboard and the reports screen show is
    derived from these records; nothing on screen is a hard-coded number.
+
+   A prescription holds one or more line items, each carrying the fields a
+   real prescription separates: pharmaceutical form, packaging, strength,
+   quantity, route, dose, frequency and duration.
    ===================================================================== */
 (function (global) {
   'use strict';
 
-  var KEY = 'pharmacheck.db.v2';
+  var KEY = 'pharmacheck.db.v3';
+  var LEGACY_KEY = 'pharmacheck.db.v2';
   var DAY = 86400000;
 
-  /* Catalogue seed. `price` is what the patient pays per unit, `cost` what
-     the pharmacy paid, which is what makes margin reporting possible. */
+  /* EAN-13 check digit, so the catalogue barcodes are genuinely scannable
+     rather than 13 arbitrary digits. */
+  function ean13(twelve) {
+    var sum = 0;
+    for (var i = 0; i < 12; i++) {
+      sum += Number(twelve[i]) * (i % 2 === 0 ? 1 : 3);
+    }
+    return twelve + String((10 - (sum % 10)) % 10);
+  }
+
   var CATALOGUE = [
-    { name: 'Amoxicillin 500mg',  form: 'Capsules', qty: 34,  reorder: 40,  batch: 'AMX-2291', expiry: '03/2027', price: 0.85,  cost: 0.48 },
-    { name: 'Atorvastatin 20mg',  form: 'Tablets',  qty: 264, reorder: 60,  batch: 'ATV-1180', expiry: '11/2027', price: 1.20,  cost: 0.62 },
-    { name: 'Metformin 850mg',    form: 'Tablets',  qty: 412, reorder: 100, batch: 'MET-3320', expiry: '06/2028', price: 0.55,  cost: 0.31 },
-    { name: 'Salbutamol Inhaler', form: 'Inhaler',  qty: 7,   reorder: 25,  batch: 'SAL-0442', expiry: '01/2027', price: 18.50, cost: 11.40 },
-    { name: 'Omeprazole 20mg',    form: 'Capsules', qty: 156, reorder: 50,  batch: 'OMP-7715', expiry: '09/2026', price: 0.95,  cost: 0.58 },
-    { name: 'Lisinopril 10mg',    form: 'Tablets',  qty: 92,  reorder: 60,  batch: 'LIS-2043', expiry: '04/2028', price: 0.70,  cost: 0.42 },
-    { name: 'Ibuprofen 400mg',    form: 'Tablets',  qty: 31,  reorder: 80,  batch: 'IBU-9931', expiry: '12/2026', price: 0.35,  cost: 0.18 },
-    { name: 'Cetirizine 10mg',    form: 'Tablets',  qty: 208, reorder: 45,  batch: 'CET-5507', expiry: '08/2028', price: 0.45,  cost: 0.29 },
-    { name: 'Insulin Glargine',   form: 'Pens',     qty: 12,  reorder: 20,  batch: 'INS-8812', expiry: '02/2027', price: 42.00, cost: 27.50 },
-    { name: 'Paracetamol 500mg',  form: 'Tablets',  qty: 640, reorder: 150, batch: 'PAR-1002', expiry: '10/2028', price: 0.22,  cost: 0.11 },
-    { name: 'Azithromycin 250mg', form: 'Tablets',  qty: 44,  reorder: 40,  batch: 'AZI-6634', expiry: '05/2027', price: 2.40,  cost: 1.45 },
-    { name: 'Warfarin 5mg',       form: 'Tablets',  qty: 9,   reorder: 30,  batch: 'WAR-4419', expiry: '07/2026', price: 0.80,  cost: 0.46 }
-  ];
+    { name: 'Amoxicillin 500mg',  strength: '500 mg',  form: 'gelule',       packaging: 'boite',     ean: '340009412345', qty: 34,  reorder: 40,  batch: 'AMX-2291', expiry: '03/2027', price: 0.85,  cost: 0.48 },
+    { name: 'Atorvastatin 20mg',  strength: '20 mg',   form: 'comprime',     packaging: 'plaquette', ean: '340009423456', qty: 264, reorder: 60,  batch: 'ATV-1180', expiry: '11/2027', price: 1.20,  cost: 0.62 },
+    { name: 'Metformin 850mg',    strength: '850 mg',  form: 'comprime',     packaging: 'plaquette', ean: '340009434567', qty: 412, reorder: 100, batch: 'MET-3320', expiry: '06/2028', price: 0.55,  cost: 0.31 },
+    { name: 'Salbutamol Inhaler', strength: '100 µg',  form: 'spray',        packaging: 'flacon',    ean: '340009445678', qty: 7,   reorder: 25,  batch: 'SAL-0442', expiry: '01/2027', price: 18.50, cost: 11.40 },
+    { name: 'Omeprazole 20mg',    strength: '20 mg',   form: 'gelule',       packaging: 'plaquette', ean: '340009456789', qty: 156, reorder: 50,  batch: 'OMP-7715', expiry: '09/2026', price: 0.95,  cost: 0.58 },
+    { name: 'Lisinopril 10mg',    strength: '10 mg',   form: 'comprime',     packaging: 'boite',     ean: '340009467890', qty: 92,  reorder: 60,  batch: 'LIS-2043', expiry: '04/2028', price: 0.70,  cost: 0.42 },
+    { name: 'Ibuprofen 400mg',    strength: '400 mg',  form: 'comprime',     packaging: 'plaquette', ean: '340009478901', qty: 31,  reorder: 80,  batch: 'IBU-9931', expiry: '12/2026', price: 0.35,  cost: 0.18 },
+    { name: 'Cetirizine 10mg',    strength: '10 mg',   form: 'comprime',     packaging: 'plaquette', ean: '340009489012', qty: 208, reorder: 45,  batch: 'CET-5507', expiry: '08/2028', price: 0.45,  cost: 0.29 },
+    { name: 'Insulin Glargine',   strength: '100 U/mL', form: 'sol-injectable', packaging: 'seringue', ean: '340009490123', qty: 12,  reorder: 20,  batch: 'INS-8812', expiry: '02/2027', price: 42.00, cost: 27.50 },
+    { name: 'Paracetamol 500mg',  strength: '500 mg',  form: 'comprime',     packaging: 'boite',     ean: '340009501234', qty: 640, reorder: 150, batch: 'PAR-1002', expiry: '10/2028', price: 0.22,  cost: 0.11 },
+    { name: 'Azithromycin 250mg', strength: '250 mg',  form: 'comprime',     packaging: 'plaquette', ean: '340009512345', qty: 44,  reorder: 40,  batch: 'AZI-6634', expiry: '05/2027', price: 2.40,  cost: 1.45 },
+    { name: 'Warfarin 5mg',       strength: '5 mg',    form: 'comprime',     packaging: 'plaquette', ean: '340009523456', qty: 9,   reorder: 30,  batch: 'WAR-4419', expiry: '07/2026', price: 0.80,  cost: 0.46 },
+    { name: 'Amoxicillin Syrup',  strength: '250 mg/5 mL', form: 'susp-buvable', packaging: 'flacon', ean: '340009534567', qty: 48,  reorder: 20,  batch: 'AMS-7781', expiry: '02/2027', price: 4.60,  cost: 2.70 },
+    { name: 'Diclofenac Gel',     strength: '1 %',     form: 'gel',          packaging: 'tube',      ean: '340009545678', qty: 63,  reorder: 25,  batch: 'DIC-3390', expiry: '11/2027', price: 6.20,  cost: 3.55 }
+  ].map(function (m) {
+    m.barcode = ean13(m.ean);
+    delete m.ean;
+    return m;
+  });
 
   var PATIENTS = [
     'Maria Gonzalez', 'J. Whitfield', 'A. Rahman', 'Chen Wei', 'Fatima Noor',
@@ -34,11 +53,20 @@
     'Sofia Rossi', 'Daniel Mbeki'
   ];
 
-  var DOSAGES = ['1 tablet daily', '1 capsule, 3× daily', '2 tablets twice daily',
-                 '1 tablet nightly', '1 capsule twice daily', 'As needed'];
+  var ROUTE_FOR_FORM = {
+    comprime: 'orale', gelule: 'orale', sirop: 'orale', 'sol-buvable': 'orale',
+    'susp-buvable': 'orale', granules: 'orale', poudre: 'orale', gouttes: 'orale',
+    suppositoire: 'rectale', ovule: 'vaginale', creme: 'cutanee', pommade: 'cutanee',
+    gel: 'cutanee', lotion: 'cutanee', spray: 'inhalee', patch: 'transdermique',
+    'sol-injectable': 'sc', 'susp-injectable': 'im', emulsion: 'orale'
+  };
 
-  /* Deterministic PRNG so the seeded trading history is identical on every
-     device and never shifts between reloads. */
+  function defaultRoute(formId) { return ROUTE_FOR_FORM[formId] || 'orale'; }
+
+  var SEED_FREQS = ['1 fois/jour — once daily', '2 fois/jour — twice daily',
+                    '3 fois/jour — three times daily', 'Au coucher — at bedtime'];
+  var SEED_DURATIONS = ['7 jours — 7 days', '14 jours — 14 days', '1 mois — 1 month'];
+
   function lcg(seed) {
     var s = seed >>> 0;
     return function () {
@@ -55,9 +83,20 @@
     return d.getTime();
   }
 
-  /* Four months of trading history, so the reports screen has something real
-     to aggregate on a fresh install. Marked `seed` so it is distinguishable
-     from prescriptions actually handled in the app. */
+  function makeItem(med, units, rand) {
+    return {
+      medication: med.name,
+      strength: med.strength,
+      form: med.form,
+      packaging: med.packaging,
+      qty: units,
+      route: defaultRoute(med.form),
+      dose: med.form === 'comprime' ? '1 comprimé' : med.form === 'gelule' ? '1 gélule' : '1 application',
+      frequency: SEED_FREQS[Math.floor((rand ? rand() : 0.5) * SEED_FREQS.length)],
+      duration: SEED_DURATIONS[Math.floor((rand ? rand() : 0.5) * SEED_DURATIONS.length)]
+    };
+  }
+
   function seedHistory() {
     var rand = lcg(20260814);
     var out = [];
@@ -67,21 +106,24 @@
     for (var back = 124; back >= 1; back--) {
       var dayStart = startOfDay(now - back * DAY);
       var weekday = new Date(dayStart).getDay();
-      // Quieter at weekends, which makes the weekly trend look like a pharmacy.
       var volume = (weekday === 0 ? 6 : weekday === 6 ? 14 : 22) + Math.floor(rand() * 12);
 
       for (var i = 0; i < volume; i++) {
-        var med = CATALOGUE[Math.floor(rand() * CATALOGUE.length)];
-        var units = med.price > 10
-          ? 1 + Math.floor(rand() * 2)
-          : 14 + Math.floor(rand() * 46);
+        // Most prescriptions are one medicine; some carry two or three.
+        var lines = rand() < 0.68 ? 1 : rand() < 0.85 ? 2 : 3;
+        var items = [];
+        for (var l = 0; l < lines; l++) {
+          var med = CATALOGUE[Math.floor(rand() * CATALOGUE.length)];
+          if (items.some(function (it) { return it.medication === med.name; })) continue;
+          var units = med.price > 10 ? 1 + Math.floor(rand() * 2) : 14 + Math.floor(rand() * 46);
+          items.push(makeItem(med, units, rand));
+        }
         var at = dayStart + Math.floor((8 + rand() * 10) * 3600000);
         out.push({
           code: 'PC-SEED-' + String(counter++).padStart(5, '0'),
           patient: PATIENTS[Math.floor(rand() * PATIENTS.length)],
-          medication: med.name,
-          dosage: DOSAGES[Math.floor(rand() * DOSAGES.length)],
-          qty: units,
+          prescriber: 'Dr. E. Okafor',
+          items: items,
           status: 'filled',
           createdAt: at,
           filledAt: at,
@@ -90,15 +132,13 @@
       }
     }
 
-    // A few still awaiting verification, so that metric is real too.
     for (var p = 0; p < 3; p++) {
       var m = CATALOGUE[Math.floor(rand() * CATALOGUE.length)];
       out.push({
         code: 'PC-SEED-' + String(counter++).padStart(5, '0'),
         patient: PATIENTS[Math.floor(rand() * PATIENTS.length)],
-        medication: m.name,
-        dosage: DOSAGES[Math.floor(rand() * DOSAGES.length)],
-        qty: 20 + Math.floor(rand() * 20),
+        prescriber: 'Dr. E. Okafor',
+        items: [makeItem(m, 20 + Math.floor(rand() * 20), rand)],
         status: 'issued',
         createdAt: now - Math.floor((12 + p * 40) * 60000),
         filledAt: null,
@@ -111,10 +151,56 @@
 
   function fresh() {
     return {
-      version: 2,
+      version: 3,
       seq: 480,
       medicines: CATALOGUE.map(function (m) { return Object.assign({}, m); }),
       prescriptions: seedHistory()
+    };
+  }
+
+  /* Records written before multi-medicine support carried a single flat
+     medication; fold each into a one-item prescription rather than discard
+     work already done in the app. */
+  function migrateFromV2(old) {
+    var byName = {};
+    CATALOGUE.forEach(function (m) { byName[m.name] = m; });
+
+    return {
+      version: 3,
+      seq: old.seq || 480,
+      medicines: (old.medicines || []).map(function (m) {
+        var ref = byName[m.name];
+        return Object.assign({}, m, {
+          strength: m.strength || (ref && ref.strength) || '',
+          form: m.form && byName[m.name] ? ref.form : (ref ? ref.form : 'comprime'),
+          packaging: m.packaging || (ref && ref.packaging) || 'boite',
+          barcode: m.barcode || (ref && ref.barcode) || ean13(String(340009900000 + Math.floor(Math.random() * 99999)).slice(0, 12))
+        });
+      }),
+      prescriptions: (old.prescriptions || []).map(function (p) {
+        if (p.items) return p;
+        var ref = byName[p.medication];
+        return {
+          code: p.code,
+          patient: p.patient,
+          prescriber: p.prescriber || 'Dr. E. Okafor',
+          items: [{
+            medication: p.medication,
+            strength: (ref && ref.strength) || '',
+            form: (ref && ref.form) || 'comprime',
+            packaging: (ref && ref.packaging) || 'boite',
+            qty: p.qty,
+            route: defaultRoute(ref && ref.form),
+            dose: p.dosage || '',
+            frequency: '',
+            duration: ''
+          }],
+          status: p.status,
+          createdAt: p.createdAt,
+          filledAt: p.filledAt,
+          source: p.source
+        };
+      })
     };
   }
 
@@ -124,12 +210,21 @@
       var raw = global.localStorage && global.localStorage.getItem(KEY);
       if (raw) {
         var parsed = JSON.parse(raw);
-        if (parsed && parsed.version === 2 && Array.isArray(parsed.medicines)) {
+        if (parsed && parsed.version === 3 && Array.isArray(parsed.medicines)) {
           db = parsed;
           return db;
         }
       }
-    } catch (e) { /* corrupt or unavailable storage — fall through to a fresh db */ }
+      var legacy = global.localStorage && global.localStorage.getItem(LEGACY_KEY);
+      if (legacy) {
+        var old = JSON.parse(legacy);
+        if (old && Array.isArray(old.medicines)) {
+          db = migrateFromV2(old);
+          save();
+          return db;
+        }
+      }
+    } catch (e) { /* corrupt or unavailable storage — fall through */ }
     db = fresh();
     save();
     return db;
@@ -153,8 +248,12 @@
     }) || null;
   }
 
-  function isLow(m) { return m.qty < m.reorder; }
+  function findByBarcode(code) {
+    var target = String(code || '').trim();
+    return load().medicines.find(function (m) { return m.barcode === target; }) || null;
+  }
 
+  function isLow(m) { return m.qty < m.reorder; }
   function lowStockCount() { return medicines().filter(isLow).length; }
 
   function addStock(name, units) {
@@ -163,10 +262,11 @@
       existing.qty += units;
     } else {
       existing = {
-        name: String(name).trim(), form: 'Units', qty: units,
-        reorder: Math.max(10, Math.round(units / 4)),
+        name: String(name).trim(), strength: '', form: 'comprime', packaging: 'boite',
+        qty: units, reorder: Math.max(10, Math.round(units / 4)),
         batch: 'NEW-' + Math.floor(1000 + Math.random() * 9000),
-        expiry: '12/2028', price: 1.00, cost: 0.60
+        expiry: '12/2028', price: 1.00, cost: 0.60,
+        barcode: ean13(String(340009900000 + Math.floor(Math.random() * 99999)).slice(0, 12))
       };
       load().medicines.unshift(existing);
     }
@@ -197,9 +297,20 @@
     var record = {
       code: fields.code || nextCode(),
       patient: fields.patient,
-      medication: fields.medication,
-      dosage: fields.dosage,
-      qty: Number(fields.qty),
+      prescriber: fields.prescriber || '',
+      items: (fields.items || []).map(function (it) {
+        return {
+          medication: it.medication,
+          strength: it.strength || '',
+          form: it.form || 'comprime',
+          packaging: it.packaging || 'boite',
+          qty: Number(it.qty) || 0,
+          route: it.route || defaultRoute(it.form),
+          dose: it.dose || '',
+          frequency: it.frequency || '',
+          duration: it.duration || ''
+        };
+      }),
       status: 'issued',
       createdAt: Date.now(),
       filledAt: null,
@@ -210,33 +321,51 @@
     return record;
   }
 
-  /* Dispensing is the only path that moves stock. Refuses rather than going
-     negative — a pharmacy cannot hand over what it does not have. */
+  /* Check every line before moving any stock, so a prescription is either
+     dispensed whole or not at all. */
+  function checkAvailability(record) {
+    var problems = [];
+    record.items.forEach(function (item) {
+      var med = findMedicine(item.medication);
+      if (!med) {
+        problems.push({ item: item, reason: 'not-stocked', message: item.medication + ' is not stocked here' });
+      } else if (med.qty < item.qty) {
+        problems.push({ item: item, reason: 'insufficient', message: 'Only ' + med.qty + ' of ' + med.name + ' left, ' + item.qty + ' needed' });
+      }
+    });
+    return problems;
+  }
+
   function fill(record) {
-    var med = findMedicine(record.medication);
-    if (!med) {
-      return { ok: false, reason: 'not-stocked', message: record.medication + ' is not in this pharmacy’s inventory' };
+    var problems = checkAvailability(record);
+    if (problems.length) {
+      return { ok: false, problems: problems, message: problems[0].message };
     }
-    if (med.qty < record.qty) {
-      return { ok: false, reason: 'insufficient', message: 'Only ' + med.qty + ' units of ' + med.name + ' in stock — ' + record.qty + ' needed' };
-    }
-    med.qty -= record.qty;
+    record.items.forEach(function (item) {
+      findMedicine(item.medication).qty -= item.qty;
+    });
     record.status = 'filled';
     record.filledAt = Date.now();
     save();
-    return { ok: true, medicine: med, record: record };
+    return { ok: true, record: record };
   }
 
   /* ------------------------------------------------------------------ *
    * Derived figures
    * ------------------------------------------------------------------ */
-  function priceOf(name) {
-    var m = findMedicine(name);
-    return m ? m.price : 0;
+  function priceOf(name) { var m = findMedicine(name); return m ? m.price : 0; }
+  function costOf(name) { var m = findMedicine(name); return m ? m.cost : 0; }
+
+  function summarise(record) {
+    if (!record.items.length) return '';
+    var first = record.items[0].medication;
+    return record.items.length === 1
+      ? first
+      : first + ' + ' + (record.items.length - 1) + ' more';
   }
-  function costOf(name) {
-    var m = findMedicine(name);
-    return m ? m.cost : 0;
+
+  function unitsIn(record) {
+    return record.items.reduce(function (n, it) { return n + it.qty; }, 0);
   }
 
   function filledBetween(from, to) {
@@ -248,8 +377,10 @@
   function totals(records) {
     var revenue = 0, cogs = 0;
     records.forEach(function (p) {
-      revenue += priceOf(p.medication) * p.qty;
-      cogs += costOf(p.medication) * p.qty;
+      p.items.forEach(function (it) {
+        revenue += priceOf(it.medication) * it.qty;
+        cogs += costOf(it.medication) * it.qty;
+      });
     });
     return { revenue: revenue, cogs: cogs, profit: revenue - cogs, count: records.length };
   }
@@ -260,57 +391,43 @@
     var filled = filledBetween(from, to);
     var t = totals(filled);
     var yesterday = filledBetween(from - DAY, from).length;
+    var issued = prescriptions().filter(function (p) { return p.status === 'issued'; });
 
     return {
       filled: filled.length,
       filledDelta: filled.length - yesterday,
       revenue: t.revenue,
       lowStock: lowStockCount(),
-      awaiting: prescriptions().filter(function (p) { return p.status === 'issued'; }).length,
-      oldestAwaiting: prescriptions()
-        .filter(function (p) { return p.status === 'issued'; })
-        .reduce(function (oldest, p) {
-          return oldest === null || p.createdAt < oldest ? p.createdAt : oldest;
-        }, null)
+      awaiting: issued.length,
+      oldestAwaiting: issued.reduce(function (oldest, p) {
+        return oldest === null || p.createdAt < oldest ? p.createdAt : oldest;
+      }, null)
     };
   }
 
   function recentActivity(limit) {
-    return prescriptions()
-      .slice()
-      .sort(function (a, b) {
-        return (b.filledAt || b.createdAt) - (a.filledAt || a.createdAt);
-      })
-      .slice(0, limit || 5);
+    return prescriptions().slice().sort(function (a, b) {
+      return (b.filledAt || b.createdAt) - (a.filledAt || a.createdAt);
+    }).slice(0, limit || 5);
   }
 
-  /* Period reporting. Buckets are the last four days / weeks / months so the
-     trend chart and the headline figure describe the same window. */
   var PERIODS = {
     daily:   { span: DAY,      buckets: 4, label: 'Last 4 days',   bucketLabel: dayLabel },
     weekly:  { span: DAY * 7,  buckets: 4, label: 'Last 4 weeks',  bucketLabel: weekLabel },
     monthly: { span: DAY * 30, buckets: 4, label: 'Last 4 months', bucketLabel: monthLabel }
   };
 
-  function dayLabel(from) {
-    return new Date(from).toLocaleDateString([], { weekday: 'short' });
-  }
-  function weekLabel(from, index, count) {
-    return 'W' + (count - index);
-  }
-  function monthLabel(from) {
-    return new Date(from).toLocaleDateString([], { month: 'short' });
-  }
+  function dayLabel(from) { return new Date(from).toLocaleDateString([], { weekday: 'short' }); }
+  function weekLabel(from, index, count) { return 'W' + (count - index); }
+  function monthLabel(from) { return new Date(from).toLocaleDateString([], { month: 'short' }); }
 
   function report(period) {
     var conf = PERIODS[period] || PERIODS.weekly;
-    var now = Date.now();
-    var end = startOfDay(now) + DAY;
+    var end = startOfDay(Date.now()) + DAY;
     var from = end - conf.span;
 
     var current = totals(filledBetween(from, end));
     var previous = totals(filledBetween(from - conf.span, from));
-
     var change = previous.profit > 0
       ? ((current.profit - previous.profit) / previous.profit) * 100
       : null;
@@ -325,62 +442,43 @@
       });
     }
 
-    // Group the period's sales by medicine to rank by contribution.
     var byMedicine = {};
     filledBetween(from, end).forEach(function (p) {
-      var entry = byMedicine[p.medication] || (byMedicine[p.medication] = { revenue: 0, cogs: 0, units: 0 });
-      entry.revenue += priceOf(p.medication) * p.qty;
-      entry.cogs += costOf(p.medication) * p.qty;
-      entry.units += p.qty;
+      p.items.forEach(function (it) {
+        var e = byMedicine[it.medication] || (byMedicine[it.medication] = { revenue: 0, cogs: 0, units: 0 });
+        e.revenue += priceOf(it.medication) * it.qty;
+        e.cogs += costOf(it.medication) * it.qty;
+        e.units += it.qty;
+      });
     });
 
     var items = Object.keys(byMedicine).map(function (name) {
       var e = byMedicine[name];
       return {
-        name: name,
-        revenue: e.revenue,
-        units: e.units,
+        name: name, revenue: e.revenue, units: e.units,
         margin: e.revenue > 0 ? Math.round(((e.revenue - e.cogs) / e.revenue) * 100) : 0,
         profit: e.revenue - e.cogs
       };
     }).sort(function (a, b) { return b.profit - a.profit; }).slice(0, 4);
 
     return {
-      profit: current.profit,
-      revenue: current.revenue,
-      cogs: current.cogs,
+      profit: current.profit, revenue: current.revenue, cogs: current.cogs,
       count: current.count,
       cogsShare: current.revenue > 0 ? (current.cogs / current.revenue) * 100 : 0,
-      change: change,
-      rangeFrom: from,
-      rangeTo: end,
-      chartLabel: conf.label,
-      bars: bars,
-      items: items
+      change: change, rangeFrom: from, rangeTo: end,
+      chartLabel: conf.label, bars: bars, items: items
     };
   }
 
-  function reset() {
-    db = fresh();
-    save();
-  }
+  function reset() { db = fresh(); save(); }
 
   global.PharmaStore = {
-    load: load,
-    save: save,
-    reset: reset,
-    medicines: medicines,
-    findMedicine: findMedicine,
-    isLow: isLow,
-    lowStockCount: lowStockCount,
-    addStock: addStock,
-    prescriptions: prescriptions,
-    nextCode: nextCode,
-    findByCode: findByCode,
-    createPrescription: createPrescription,
-    fill: fill,
-    todaySummary: todaySummary,
-    recentActivity: recentActivity,
-    report: report
+    load: load, save: save, reset: reset,
+    medicines: medicines, findMedicine: findMedicine, findByBarcode: findByBarcode,
+    isLow: isLow, lowStockCount: lowStockCount, addStock: addStock,
+    prescriptions: prescriptions, nextCode: nextCode, findByCode: findByCode,
+    createPrescription: createPrescription, checkAvailability: checkAvailability, fill: fill,
+    summarise: summarise, unitsIn: unitsIn, defaultRoute: defaultRoute,
+    todaySummary: todaySummary, recentActivity: recentActivity, report: report
   };
 })(typeof self !== 'undefined' ? self : this);
