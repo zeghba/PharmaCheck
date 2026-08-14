@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F8FD">
+<meta name="description" content="PharmaCheck — prescription scanning, inventory and profit reporting for pharmacy teams.">
+<title>PharmaCheck</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231A73E8'/><path d='M10 9h8a5 5 0 0 1 0 10h-4v5h-4z' fill='white'/></svg>">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ============================ ICON SPRITE ============================ -->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></symbol>
+  <symbol id="i-rx" viewBox="0 0 24 24"><path d="M19 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h9l6 6v11a1 1 0 0 1-1 1Z"/><path d="M14 3v6h6"/><path d="M8 12h4.2a1.9 1.9 0 0 1 0 3.8H8V12Zm0 3.8V19"/><path d="m12.6 15.8 3.4 3.4m0-3.4-3.4 3.4"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8.4v7.2a1.6 1.6 0 0 1-.85 1.41l-7.2 3.86a2 2 0 0 1-1.9 0l-7.2-3.86A1.6 1.6 0 0 1 3 15.6V8.4a1.6 1.6 0 0 1 .85-1.41l7.2-3.86a2 2 0 0 1 1.9 0l7.2 3.86A1.6 1.6 0 0 1 21 8.4Z"/><path d="m3.3 7.5 8.7 4.6 8.7-4.6M12 12.1V21"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10m5 10V4m5 16v-7m5 7V8"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M21 16v2.5a2.5 2.5 0 0 1-2.5 2.5H16M8 21H5.5A2.5 2.5 0 0 1 3 18.5V16"/><path d="M7 8v8m3.5-8v8M14 8v8m3.5-8v8"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z"/><path d="M14.5 5.5l3 3"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7Z"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12.5 5.2 5.2L20 7"/></symbol>
+  <symbol id="i-flash" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></symbol>
+  <symbol id="i-flash-off" viewBox="0 0 24 24"><path d="M13 2 8.6 7.9M11 14H4L8 8.6M13.5 10H20l-6.2 8.3-.4 3.7"/><path d="M3 3l18 18"/></symbol>
+  <symbol id="i-gallery" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 17 4.5-4.5a2 2 0 0 1 2.8 0L16 17m-1-2 1.6-1.6a2 2 0 0 1 2.8 0L21 15"/></symbol>
+  <symbol id="i-flip" viewBox="0 0 24 24"><path d="M3 10a7 7 0 0 1 11.9-5M21 14a7 7 0 0 1-11.9 5"/><path d="M3 5v5h5M21 19v-5h-5"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 15V3m0 0L8.5 6.5M12 3l3.5 3.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></symbol>
+  <symbol id="i-pill" viewBox="0 0 24 24"><rect x="2.5" y="8" width="19" height="8" rx="4" transform="rotate(-45 12 12)"/><path d="m9 9 6 6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.5 21 19H3l9-15.5Z"/><path d="M12 10v4m0 3h.01"/></symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24"><path d="M3 17 9.5 10.5l4 4L21 7"/><path d="M15 7h6v6"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></symbol>
+  <symbol id="i-dose" viewBox="0 0 24 24"><path d="M12 3v4M8 7h8l-1 13.2a1 1 0 0 1-1 .8h-4a1 1 0 0 1-1-.8L8 7Z"/><path d="M8.4 13h7.2"/></symbol>
+  <symbol id="i-hash" viewBox="0 0 24 24"><path d="M10 3 8 21M16 3l-2 18M3.5 8.5h17M3 15.5h17"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.4 2"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z"/></symbol>
+</svg>
+
+<div class="stage">
+  <div class="phone" role="application" aria-label="PharmaCheck">
+
+    <!-- ========================= STATUS BAR ========================= -->
+    <div class="statusbar">
+      <span class="statusbar__time" id="clock">9:41</span>
+      <span class="statusbar__notch"></span>
+      <span class="statusbar__icons">
+        <svg viewBox="0 0 20 12" class="sb-signal"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="4.5" y="5.5" width="3" height="6.5" rx="1"/><rect x="9" y="3" width="3" height="9" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1"/></svg>
+        <svg viewBox="0 0 16 12" class="sb-wifi"><path d="M8 10.4 6 8a2.9 2.9 0 0 1 4 0l-2 2.4Z"/><path d="M3.6 5.6a6.6 6.6 0 0 1 8.8 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M1.2 3.1a10.2 10.2 0 0 1 13.6 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <svg viewBox="0 0 26 12" class="sb-batt"><rect x="0.6" y="0.6" width="21" height="10.8" rx="3.2" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".45"/><rect x="2.4" y="2.4" width="15" height="7.2" rx="2" /><path d="M23.4 4.2v3.6a2.2 2.2 0 0 0 0-3.6Z" opacity=".45"/></svg>
+      </span>
+    </div>
+
+    <main class="viewport" id="viewport">
+
+      <!-- ===================== 1. DASHBOARD ===================== -->
+      <section class="screen screen--scroll is-active" id="screen-dashboard" aria-label="Dashboard">
+        <header class="apphead">
+          <div>
+            <p class="apphead__date" id="today-label">Thursday, 14 August</p>
+            <h1 class="apphead__title">Welcome, Sarah</h1>
+            <p class="apphead__sub">PharmaCheck Central · On duty</p>
+          </div>
+          <div class="apphead__actions">
+            <button class="iconbtn iconbtn--ghost" type="button" id="bell" aria-label="Notifications">
+              <svg class="icon"><use href="#i-bell"/></svg>
+              <span class="dot-badge"></span>
+            </button>
+            <div class="avatar" aria-hidden="true">SK</div>
+          </div>
+        </header>
+
+        <div class="quickgrid">
+          <button class="quicktile" type="button" data-go="scanner">
+            <span class="quicktile__icon quicktile__icon--blue"><svg class="icon"><use href="#i-scan"/></svg></span>
+            <span class="quicktile__label">Scan<br>Prescription</span>
+          </button>
+          <button class="quicktile" type="button" data-go="inventory">
+            <span class="quicktile__icon quicktile__icon--teal"><svg class="icon"><use href="#i-box"/></svg></span>
+            <span class="quicktile__label">Inventory</span>
+          </button>
+          <button class="quicktile" type="button" data-go="manual">
+            <span class="quicktile__icon quicktile__icon--violet"><svg class="icon"><use href="#i-pen"/></svg></span>
+            <span class="quicktile__label">Manual<br>Entry</span>
+          </button>
+        </div>
+
+        <div class="section-head">
+          <h2 class="section-title">Today’s Summary</h2>
+          <button class="linkbtn" type="button" data-go="reports">View reports <svg class="icon icon--xs"><use href="#i-chevron"/></svg></button>
+        </div>
+
+        <div class="metricgrid">
+          <div class="card metric">
+            <p class="metric__label">Prescriptions Filled</p>
+            <p class="metric__value">42</p>
+            <p class="metric__delta metric__delta--up"><svg class="icon icon--xs"><use href="#i-trend"/></svg> 8 more than yesterday</p>
+          </div>
+          <div class="card metric">
+            <p class="metric__label">Low Stock Items</p>
+            <p class="metric__value metric__value--alert" id="dash-low">—</p>
+            <p class="metric__delta metric__delta--down"><svg class="icon icon--xs"><use href="#i-alert"/></svg> Reorder required</p>
+          </div>
+          <div class="card metric">
+            <p class="metric__label">Awaiting Verification</p>
+            <p class="metric__value">3</p>
+            <p class="metric__delta"><svg class="icon icon--xs"><use href="#i-clock"/></svg> Oldest 12 min ago</p>
+          </div>
+          <div class="card metric">
+            <p class="metric__label">Revenue Today</p>
+            <p class="metric__value">$4,280</p>
+            <p class="metric__delta metric__delta--up"><svg class="icon icon--xs"><use href="#i-trend"/></svg> 6.2% vs average</p>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2 class="section-title">Recent Activity</h2>
+        </div>
+        <ul class="card activity" id="activity-list">
+          <li class="activity__row">
+            <span class="activity__icon"><svg class="icon"><use href="#i-pill"/></svg></span>
+            <span class="activity__body">
+              <span class="activity__name">Amoxicillin 500mg</span>
+              <span class="activity__meta">M. Gonzalez · 21 capsules</span>
+            </span>
+            <span class="badge badge--green">Filled</span>
+          </li>
+          <li class="activity__row">
+            <span class="activity__icon"><svg class="icon"><use href="#i-pill"/></svg></span>
+            <span class="activity__body">
+              <span class="activity__name">Metformin 850mg</span>
+              <span class="activity__meta">J. Whitfield · 60 tablets</span>
+            </span>
+            <span class="badge badge--amber">Pending</span>
+          </li>
+          <li class="activity__row">
+            <span class="activity__icon"><svg class="icon"><use href="#i-pill"/></svg></span>
+            <span class="activity__body">
+              <span class="activity__name">Salbutamol Inhaler</span>
+              <span class="activity__meta">A. Rahman · 1 unit</span>
+            </span>
+            <span class="badge badge--green">Filled</span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- ===================== 2. SCANNER ===================== -->
+      <section class="screen screen--camera" id="screen-scanner" aria-label="Prescription scanner">
+        <div class="camera">
+          <video class="camera__feed" id="camera-feed" playsinline muted autoplay></video>
+
+          <!-- Simulated document, shown until a real camera stream starts -->
+          <div class="camera__mock" id="camera-mock">
+            <div class="scene">
+              <div class="paper">
+                <div class="paper__head">
+                  <div>
+                    <p class="paper__clinic">NORTHSIDE MEDICAL CENTRE</p>
+                    <p class="paper__line paper__line--sm">Dr. E. Okafor · Lic. 44-208-119</p>
+                  </div>
+                  <div class="paper__rx">℞</div>
+                </div>
+                <div class="paper__rule"></div>
+                <p class="paper__line" style="width:78%"></p>
+                <p class="paper__line" style="width:54%"></p>
+                <div class="paper__qr" id="mock-qr"></div>
+                <p class="paper__line" style="width:66%"></p>
+                <p class="paper__line paper__line--sm" style="width:44%"></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="camera__vignette"></div>
+          <div class="flash-burst" id="flash-burst"></div>
+
+          <!-- Top bar -->
+          <div class="camtop">
+            <button class="iconbtn iconbtn--glass" type="button" data-go="dashboard" aria-label="Close scanner">
+              <svg class="icon"><use href="#i-close"/></svg>
+            </button>
+            <div class="camtop__title">
+              <span>Scan Prescription</span>
+              <small id="camera-source">Simulated feed</small>
+            </div>
+            <button class="iconbtn iconbtn--glass" type="button" id="flash-toggle" aria-pressed="false" aria-label="Toggle flash">
+              <svg class="icon" id="flash-icon"><use href="#i-flash-off"/></svg>
+            </button>
+          </div>
+
+          <!-- Viewfinder -->
+          <div class="finder" id="finder">
+            <span class="finder__corner finder__corner--tl"></span>
+            <span class="finder__corner finder__corner--tr"></span>
+            <span class="finder__corner finder__corner--bl"></span>
+            <span class="finder__corner finder__corner--br"></span>
+            <span class="finder__beam" id="finder-beam"></span>
+            <div class="finder__success" id="finder-success" aria-hidden="true">
+              <span class="finder__check"><svg class="icon"><use href="#i-check"/></svg></span>
+            </div>
+          </div>
+
+          <p class="camera__hint" id="camera-hint">Align QR Code within the frame</p>
+
+          <!-- Bottom controls -->
+          <div class="camctl">
+            <button class="iconbtn iconbtn--glass" type="button" data-toast="Photo library is not available in this demo" aria-label="Choose from library">
+              <svg class="icon"><use href="#i-gallery"/></svg>
+            </button>
+            <button class="shutter" type="button" id="shutter" aria-label="Capture prescription">
+              <span class="shutter__ring"></span>
+              <span class="shutter__core"></span>
+            </button>
+            <button class="iconbtn iconbtn--glass" type="button" id="camera-flip" aria-label="Switch camera">
+              <svg class="icon"><use href="#i-flip"/></svg>
+            </button>
+          </div>
+
+          <!-- Result sheet -->
+          <div class="sheet" id="scan-sheet" aria-hidden="true">
+            <div class="sheet__grab"></div>
+            <div class="sheet__head">
+              <span class="sheet__badge"><svg class="icon icon--xs"><use href="#i-check"/></svg> Code verified</span>
+              <span class="sheet__code" id="scan-code">PC-2026-0481</span>
+            </div>
+            <dl class="kv">
+              <div class="kv__row"><dt>Patient</dt><dd>Maria Gonzalez</dd></div>
+              <div class="kv__row"><dt>Medication</dt><dd>Amoxicillin 500mg</dd></div>
+              <div class="kv__row"><dt>Dosage</dt><dd>1 capsule, 3× daily</dd></div>
+              <div class="kv__row"><dt>Quantity</dt><dd>21 capsules</dd></div>
+              <div class="kv__row"><dt>Prescriber</dt><dd>Dr. E. Okafor</dd></div>
+            </dl>
+            <div class="sheet__actions">
+              <button class="btn btn--ghost" type="button" id="scan-dismiss">Rescan</button>
+              <button class="btn btn--primary" type="button" id="scan-fill">Fill Prescription</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== 3. MANUAL ENTRY ===================== -->
+      <section class="screen screen--scroll" id="screen-manual" aria-label="Manual entry">
+        <header class="apphead apphead--compact">
+          <button class="iconbtn iconbtn--ghost" type="button" data-go="scanner" aria-label="Back to scanner">
+            <svg class="icon"><use href="#i-back"/></svg>
+          </button>
+          <div>
+            <h1 class="apphead__title apphead__title--sm">Manual Entry</h1>
+            <p class="apphead__sub">Create a prescription code by hand</p>
+          </div>
+        </header>
+
+        <form class="card form" id="rx-form" novalidate>
+          <div class="field">
+            <label class="field__label" for="f-patient">Patient Name</label>
+            <div class="field__control">
+              <svg class="icon field__icon"><use href="#i-user"/></svg>
+              <input id="f-patient" name="patient" type="text" autocomplete="off" placeholder="e.g. Maria Gonzalez">
+            </div>
+            <p class="field__error" data-error-for="patient"></p>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="f-medication">Medication Name</label>
+            <div class="field__control">
+              <svg class="icon field__icon"><use href="#i-pill"/></svg>
+              <input id="f-medication" name="medication" type="text" autocomplete="off" placeholder="e.g. Amoxicillin 500mg" list="med-suggestions">
+            </div>
+            <datalist id="med-suggestions"></datalist>
+            <p class="field__error" data-error-for="medication"></p>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field__label" for="f-dosage">Dosage</label>
+              <div class="field__control">
+                <svg class="icon field__icon"><use href="#i-dose"/></svg>
+                <input id="f-dosage" name="dosage" type="text" autocomplete="off" placeholder="1 cap, 3× daily">
+              </div>
+              <p class="field__error" data-error-for="dosage"></p>
+            </div>
+            <div class="field">
+              <label class="field__label" for="f-quantity">Quantity</label>
+              <div class="field__control">
+                <svg class="icon field__icon"><use href="#i-hash"/></svg>
+                <input id="f-quantity" name="quantity" type="number" inputmode="numeric" min="1" step="1" placeholder="21">
+              </div>
+              <p class="field__error" data-error-for="quantity"></p>
+            </div>
+          </div>
+
+          <button class="btn btn--primary btn--block btn--lg" type="submit">
+            Generate Prescription Code
+          </button>
+        </form>
+
+        <p class="hintnote" id="manual-hint">
+          <svg class="icon icon--xs"><use href="#i-scan"/></svg>
+          The generated code carries the prescription details, so it can be
+          scanned at collection without looking anything up.
+        </p>
+
+        <div class="card qrcard" id="qr-result" hidden>
+          <div class="qrcard__head">
+            <div>
+              <p class="qrcard__label">Prescription Code</p>
+              <p class="qrcard__code" id="qr-code-text">—</p>
+            </div>
+            <span class="badge badge--green">Ready</span>
+          </div>
+          <div class="qrcard__frame" id="qr-canvas"></div>
+          <p class="qrcard__meta" id="qr-meta"></p>
+          <div class="qrcard__tools">
+            <button class="btn btn--soft" type="button" id="qr-print">
+              <svg class="icon icon--xs"><use href="#i-share"/></svg> Print / Share
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== 4. INVENTORY ===================== -->
+      <section class="screen screen--fixed" id="screen-inventory" aria-label="Inventory">
+        <header class="apphead apphead--compact">
+          <div>
+            <h1 class="apphead__title apphead__title--sm">Inventory</h1>
+            <p class="apphead__sub" id="inv-summary">—</p>
+          </div>
+        </header>
+
+        <div class="searchbar">
+          <svg class="icon searchbar__icon"><use href="#i-search"/></svg>
+          <input id="inv-search" type="search" placeholder="Search Medicine Stock" aria-label="Search Medicine Stock" autocomplete="off">
+        </div>
+
+        <div class="chips" role="tablist" aria-label="Stock filter">
+          <button class="chip is-on" type="button" role="tab" aria-selected="true" data-filter="all">All items</button>
+          <button class="chip" type="button" role="tab" aria-selected="false" data-filter="low">Low stock</button>
+          <button class="chip" type="button" role="tab" aria-selected="false" data-filter="expiring">Expiring soon</button>
+        </div>
+
+        <div class="scrollarea">
+          <ul class="stocklist" id="stock-list"></ul>
+          <p class="emptystate" id="stock-empty" hidden>No medicines match that search.</p>
+        </div>
+
+        <button class="fab" type="button" id="fab-add" aria-label="Add stock">
+          <svg class="icon"><use href="#i-plus"/></svg>
+        </button>
+      </section>
+
+      <!-- ===================== 5. REPORTS ===================== -->
+      <section class="screen screen--scroll" id="screen-reports" aria-label="Financial reports">
+        <header class="apphead apphead--compact">
+          <div>
+            <h1 class="apphead__title apphead__title--sm">Financial Reports</h1>
+            <p class="apphead__sub">Manager view · PharmaCheck Central</p>
+          </div>
+          <span class="badge badge--blue">Manager</span>
+        </header>
+
+        <div class="segmented" role="tablist" aria-label="Reporting period">
+          <button class="segmented__btn is-on" type="button" role="tab" aria-selected="true" data-period="daily">Daily</button>
+          <button class="segmented__btn" type="button" role="tab" aria-selected="false" data-period="weekly">Weekly</button>
+          <button class="segmented__btn" type="button" role="tab" aria-selected="false" data-period="monthly">Monthly</button>
+          <span class="segmented__pill" id="segpill"></span>
+        </div>
+
+        <div class="card profit">
+          <p class="profit__label">Net Profit Summary</p>
+          <p class="profit__value" id="profit-value">$0</p>
+          <p class="profit__trend"><svg class="icon icon--xs"><use href="#i-trend"/></svg> <span id="profit-trend">—</span></p>
+          <p class="profit__note" id="profit-range">—</p>
+        </div>
+
+        <div class="duo">
+          <div class="card duo__card">
+            <p class="duo__label">Total Revenue</p>
+            <p class="duo__value" id="revenue-value">$0</p>
+            <p class="duo__meta" id="revenue-meta">—</p>
+          </div>
+          <div class="card duo__card">
+            <p class="duo__label">Total COGS</p>
+            <p class="duo__value duo__value--cost" id="cogs-value">$0</p>
+            <p class="duo__meta" id="cogs-meta">—</p>
+          </div>
+        </div>
+
+        <div class="card chartcard">
+          <div class="section-head section-head--tight">
+            <h2 class="section-title section-title--sm">Sales Trend</h2>
+            <span class="chartcard__hint">Last 4 weeks</span>
+          </div>
+          <div class="chart" id="chart"></div>
+        </div>
+
+        <div class="section-head">
+          <h2 class="section-title">Top Profitable Items</h2>
+          <span class="section-note">Margin</span>
+        </div>
+        <ul class="card ranklist" id="rank-list"></ul>
+      </section>
+
+    </main>
+
+    <!-- ========================== TAB BAR ========================== -->
+    <nav class="tabbar" aria-label="Primary">
+      <button class="tab is-on" type="button" data-go="dashboard" aria-current="page">
+        <svg class="icon"><use href="#i-grid"/></svg><span>Dashboard</span>
+      </button>
+      <button class="tab" type="button" data-go="scanner">
+        <svg class="icon"><use href="#i-rx"/></svg><span>Prescriptions</span>
+      </button>
+      <button class="tab" type="button" data-go="inventory">
+        <svg class="icon"><use href="#i-box"/></svg><span>Inventory</span>
+      </button>
+      <button class="tab" type="button" data-go="reports">
+        <svg class="icon"><use href="#i-chart"/></svg><span>Reports</span>
+      </button>
+    </nav>
+    <div class="homebar" aria-hidden="true"></div>
+
+    <!-- ===================== ADD-STOCK SHEET ===================== -->
+    <div class="scrim" id="scrim" hidden></div>
+    <div class="sheet sheet--modal" id="stock-sheet" aria-hidden="true" role="dialog" aria-label="Add stock">
+      <div class="sheet__grab"></div>
+      <h2 class="sheet__title">Add Stock</h2>
+      <form id="stock-form" novalidate>
+        <div class="field">
+          <label class="field__label" for="s-name">Medicine</label>
+          <div class="field__control">
+            <svg class="icon field__icon"><use href="#i-pill"/></svg>
+            <input id="s-name" name="name" type="text" placeholder="e.g. Amoxicillin 500mg" list="med-suggestions" autocomplete="off">
+          </div>
+          <p class="field__error" data-error-for="name"></p>
+        </div>
+        <div class="field">
+          <label class="field__label" for="s-qty">Units received</label>
+          <div class="field__control">
+            <svg class="icon field__icon"><use href="#i-hash"/></svg>
+            <input id="s-qty" name="qty" type="number" inputmode="numeric" min="1" step="1" placeholder="120">
+          </div>
+          <p class="field__error" data-error-for="qty"></p>
+        </div>
+        <div class="sheet__actions">
+          <button class="btn btn--ghost" type="button" id="stock-cancel">Cancel</button>
+          <button class="btn btn--primary" type="submit">Add to Inventory</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- Print-only sheet for the generated prescription code -->
+<div class="printsheet" id="printsheet" aria-hidden="true"></div>
+
+<script src="js/qr.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
