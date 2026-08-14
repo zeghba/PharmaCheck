@@ -185,6 +185,22 @@
     }).join('') : '<li class="activity__row"><span class="activity__meta">No prescriptions yet today.</span></li>';
   }
 
+  /* The native shell calls this once expo-updates has reported in. Showing
+     which bundle is live is what makes an over-the-air update observable —
+     otherwise a successful update and a broken one both look like silence. */
+  window.__pharmacheckBuild = function (info) {
+    var line = $('#buildline');
+    if (!line) return;
+    if (!info) { line.textContent = ''; return; }
+
+    var source = info.embedded ? 'shipped with the app' : 'over-the-air';
+    var id = info.updateId ? String(info.updateId).slice(0, 8) : 'embedded';
+    line.innerHTML =
+      'PharmaCheck <b>' + escapeHtml(info.version || '1.0.0') + '</b>' +
+      (info.channel ? ' · ' + escapeHtml(info.channel) : '') +
+      '<br>bundle <b>' + escapeHtml(id) + '</b> · ' + source;
+  };
+
   $('#bell').addEventListener('click', function () {
     var s = Store.todaySummary();
     toast(s.lowStock + ' medicines below reorder level · ' +
@@ -798,6 +814,8 @@
     b.classList.toggle('is-on', b.dataset.period === activePeriod);
     b.setAttribute('aria-selected', String(b.dataset.period === activePeriod));
   });
+
+  if (!isNative) window.__pharmacheckBuild({ version: '1.0.0', channel: 'web', embedded: true });
 
   Store.load();
   refreshSuggestions();

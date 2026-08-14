@@ -1401,3 +1401,14 @@ html.is-native .toast { bottom: calc(var(--tab-h) + 14px + env(safe-area-inset-b
   box-shadow: none;
   cursor: not-allowed;
 }
+
+/* Which bundle is running — makes an OTA update visible rather than silent. */
+.buildline {
+  margin: 18px 2px 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.buildline b { font-weight: 700; color: var(--ink-2); }

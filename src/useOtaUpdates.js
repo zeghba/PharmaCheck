@@ -83,5 +83,8 @@ export default function useOtaUpdates() {
     runtimeVersion: Updates.runtimeVersion,
     channel: Updates.channel,
     updateId: Updates.updateId,
+    // True when running the bundle compiled into the APK rather than one
+    // downloaded over the air.
+    isEmbeddedLaunch: Updates.isEmbeddedLaunch,
   };
 }

@@ -50,7 +50,7 @@ function Shell() {
   const [dismissed, setDismissed] = useState(false);
 
   const insets = useSafeAreaInsets();
-  const { isUpdateReady, applyUpdate } = useOtaUpdates();
+  const { isUpdateReady, applyUpdate, runtimeVersion, channel, updateId, isEmbeddedLaunch } = useOtaUpdates();
 
   const onMessage = useCallback((event) => {
     let payload;
@@ -80,6 +80,20 @@ function Shell() {
     return () => sub.remove();
   }, [screen]);
 
+  /* Tell the page which bundle it is, so an over-the-air update is visible
+     in the UI instead of being indistinguishable from nothing happening. */
+  const reportBuild = useCallback(() => {
+    const info = {
+      version: runtimeVersion || '1.0.0',
+      channel: channel || 'local',
+      updateId: updateId || null,
+      embedded: isEmbeddedLaunch !== false,
+    };
+    webRef.current?.injectJavaScript(
+      'window.__pharmacheckBuild && window.__pharmacheckBuild(' + JSON.stringify(info) + '); true;'
+    );
+  }, [runtimeVersion, channel, updateId, isEmbeddedLaunch]);
+
   const background = dark ? SCANNER_BG : LIGHT_BG;
 
   return (
@@ -107,6 +121,7 @@ function Shell() {
         source={{ html: NATIVE_HTML, baseUrl: 'https://pharmacheck.local' }}
         injectedJavaScriptBeforeContentLoaded={BEFORE_LOAD}
         onMessage={onMessage}
+        onLoadEnd={reportBuild}
         // The UI is a fixed-size app shell, not a scrollable document.
         scrollEnabled={false}
         overScrollMode="never"
