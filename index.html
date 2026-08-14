@@ -650,10 +650,11 @@
 
     <!-- ===================== ADD-STOCK SHEET ===================== -->
     <div class="scrim" id="scrim" hidden></div>
-    <div class="sheet sheet--modal" id="stock-sheet" aria-hidden="true" role="dialog" aria-label="Add stock">
+    <div class="sheet sheet--modal sheet--tall" id="stock-sheet" aria-hidden="true" role="dialog" aria-label="Add stock">
       <div class="sheet__grab"></div>
       <h2 class="sheet__title">Add Stock</h2>
       <form id="stock-form" novalidate>
+        <div class="sheetscroll">
         <div class="field">
           <label class="field__label" for="s-name">Medicine</label>
           <div class="field__control">
@@ -666,13 +667,68 @@
           <label class="field__label" for="s-qty">Units received</label>
           <div class="field__control">
             <svg class="icon field__icon"><use href="#i-hash"/></svg>
-            <input id="s-qty" name="qty" type="number" inputmode="numeric" min="1" step="1" placeholder="120">
+            <input id="s-qty" name="qty" type="number" inputmode="numeric" step="1" placeholder="120">
           </div>
           <p class="field__error" data-error-for="qty"></p>
         </div>
+
+        <!-- Shown only when the medicine is not already on the shelf -->
+        <div id="s-new" hidden>
+          <p class="sheet__note sheet__note--info">New medicine — record its barcode and pricing so sales and profit are counted correctly.</p>
+
+          <div class="field">
+            <label class="field__label" for="s-barcode">Barcode</label>
+            <div class="field__control">
+              <svg class="icon field__icon"><use href="#i-barcode"/></svg>
+              <input id="s-barcode" name="barcode" type="text" inputmode="numeric" autocomplete="off" placeholder="Scan or type the box barcode">
+              <button class="field__action" type="button" id="s-scan" aria-label="Scan the box barcode">
+                <svg class="icon icon--xs"><use href="#i-barcode"/></svg>
+              </button>
+            </div>
+            <p class="field__error" data-error-for="barcode"></p>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field__label" for="s-price">Selling price (DA)</label>
+              <div class="field__control">
+                <input id="s-price" name="price" type="number" inputmode="decimal" step="0.01" min="0" placeholder="12.50">
+              </div>
+              <p class="field__error" data-error-for="price"></p>
+            </div>
+            <div class="field">
+              <label class="field__label" for="s-cost">Cost (DA)</label>
+              <div class="field__control">
+                <input id="s-cost" name="cost" type="number" inputmode="decimal" step="0.01" min="0" placeholder="7.00">
+              </div>
+              <p class="field__error" data-error-for="cost"></p>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="s-strength">Strength <span class="field__opt">optional</span></label>
+            <div class="field__control">
+              <input id="s-strength" name="strength" type="text" autocomplete="off" placeholder="500 mg">
+            </div>
+          </div>
+
+          <div class="field-row">
+            <div class="field">
+              <label class="field__label" for="s-form">Form</label>
+              <div class="field__control"><select id="s-form" name="form"></select></div>
+            </div>
+            <div class="field">
+              <label class="field__label" for="s-packaging">Packaging</label>
+              <div class="field__control"><select id="s-packaging" name="packaging"></select></div>
+            </div>
+          </div>
+        </div>
+
+        <p class="sheet__note" id="s-known" hidden></p>
+        </div>
         <div class="sheet__actions">
           <button class="btn btn--ghost" type="button" id="stock-cancel">Cancel</button>
-          <button class="btn btn--primary" type="submit">Add to Inventory</button>
+          <button class="btn btn--primary" type="submit" id="stock-save">Add to Inventory</button>
         </div>
       </form>
     </div>
@@ -802,14 +858,14 @@
       <form id="price-form" novalidate>
         <div class="field-row">
           <div class="field">
-            <label class="field__label" for="pr-price">Selling price / unit</label>
+            <label class="field__label" for="pr-price">Selling price / unit (DA)</label>
             <div class="field__control">
               <input id="pr-price" name="price" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.85">
             </div>
             <p class="field__error" data-error-for="price"></p>
           </div>
           <div class="field">
-            <label class="field__label" for="pr-cost">Cost / unit</label>
+            <label class="field__label" for="pr-cost">Cost / unit (DA)</label>
             <div class="field__control">
               <input id="pr-cost" name="cost" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.48">
             </div>

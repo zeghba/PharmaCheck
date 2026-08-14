@@ -46,20 +46,20 @@
   }
 
   var CATALOGUE = [
-    { name: 'Amoxicillin 500mg',  strength: '500 mg',  form: 'gelule',       packaging: 'boite',     ean: '340009412345', qty: 34,  reorder: 40,  batch: 'AMX-2291', expiry: '03/2027', price: 0.85,  cost: 0.48 },
-    { name: 'Atorvastatin 20mg',  strength: '20 mg',   form: 'comprime',     packaging: 'plaquette', ean: '340009423456', qty: 264, reorder: 60,  batch: 'ATV-1180', expiry: '11/2027', price: 1.20,  cost: 0.62 },
-    { name: 'Metformin 850mg',    strength: '850 mg',  form: 'comprime',     packaging: 'plaquette', ean: '340009434567', qty: 412, reorder: 100, batch: 'MET-3320', expiry: '06/2028', price: 0.55,  cost: 0.31 },
-    { name: 'Salbutamol Inhaler', strength: '100 µg',  form: 'spray',        packaging: 'flacon',    ean: '340009445678', qty: 7,   reorder: 25,  batch: 'SAL-0442', expiry: '01/2027', price: 18.50, cost: 11.40 },
-    { name: 'Omeprazole 20mg',    strength: '20 mg',   form: 'gelule',       packaging: 'plaquette', ean: '340009456789', qty: 156, reorder: 50,  batch: 'OMP-7715', expiry: '09/2026', price: 0.95,  cost: 0.58 },
-    { name: 'Lisinopril 10mg',    strength: '10 mg',   form: 'comprime',     packaging: 'boite',     ean: '340009467890', qty: 92,  reorder: 60,  batch: 'LIS-2043', expiry: '04/2028', price: 0.70,  cost: 0.42 },
-    { name: 'Ibuprofen 400mg',    strength: '400 mg',  form: 'comprime',     packaging: 'plaquette', ean: '340009478901', qty: 31,  reorder: 80,  batch: 'IBU-9931', expiry: '12/2026', price: 0.35,  cost: 0.18 },
-    { name: 'Cetirizine 10mg',    strength: '10 mg',   form: 'comprime',     packaging: 'plaquette', ean: '340009489012', qty: 208, reorder: 45,  batch: 'CET-5507', expiry: '08/2028', price: 0.45,  cost: 0.29 },
-    { name: 'Insulin Glargine',   strength: '100 U/mL', form: 'sol-injectable', packaging: 'seringue', ean: '340009490123', qty: 12,  reorder: 20,  batch: 'INS-8812', expiry: '02/2027', price: 42.00, cost: 27.50 },
-    { name: 'Paracetamol 500mg',  strength: '500 mg',  form: 'comprime',     packaging: 'boite',     ean: '340009501234', qty: 640, reorder: 150, batch: 'PAR-1002', expiry: '10/2028', price: 0.22,  cost: 0.11 },
-    { name: 'Azithromycin 250mg', strength: '250 mg',  form: 'comprime',     packaging: 'plaquette', ean: '340009512345', qty: 44,  reorder: 40,  batch: 'AZI-6634', expiry: '05/2027', price: 2.40,  cost: 1.45 },
-    { name: 'Warfarin 5mg',       strength: '5 mg',    form: 'comprime',     packaging: 'plaquette', ean: '340009523456', qty: 9,   reorder: 30,  batch: 'WAR-4419', expiry: '07/2026', price: 0.80,  cost: 0.46 },
-    { name: 'Amoxicillin Syrup',  strength: '250 mg/5 mL', form: 'susp-buvable', packaging: 'flacon', ean: '340009534567', qty: 48,  reorder: 20,  batch: 'AMS-7781', expiry: '02/2027', price: 4.60,  cost: 2.70 },
-    { name: 'Diclofenac Gel',     strength: '1 %',     form: 'gel',          packaging: 'tube',      ean: '340009545678', qty: 63,  reorder: 25,  batch: 'DIC-3390', expiry: '11/2027', price: 6.20,  cost: 3.55 }
+    { name: 'Amoxicillin 500mg',  strength: '500 mg',  form: 'gelule',       packaging: 'boite',     ean: '340009412345', qty: 34,  reorder: 40,  batch: 'AMX-2291', expiry: '03/2027', price: 12.50,  cost: 7.00 },
+    { name: 'Atorvastatin 20mg',  strength: '20 mg',   form: 'comprime',     packaging: 'plaquette', ean: '340009423456', qty: 264, reorder: 60,  batch: 'ATV-1180', expiry: '11/2027', price: 26.00,  cost: 13.50 },
+    { name: 'Metformin 850mg',    strength: '850 mg',  form: 'comprime',     packaging: 'plaquette', ean: '340009434567', qty: 412, reorder: 100, batch: 'MET-3320', expiry: '06/2028', price: 8.00,  cost: 4.50 },
+    { name: 'Salbutamol Inhaler', strength: '100 µg',  form: 'spray',        packaging: 'flacon',    ean: '340009445678', qty: 7,   reorder: 25,  batch: 'SAL-0442', expiry: '01/2027', price: 385.00, cost: 240.00 },
+    { name: 'Omeprazole 20mg',    strength: '20 mg',   form: 'gelule',       packaging: 'plaquette', ean: '340009456789', qty: 156, reorder: 50,  batch: 'OMP-7715', expiry: '09/2026', price: 14.00,  cost: 8.50 },
+    { name: 'Lisinopril 10mg',    strength: '10 mg',   form: 'comprime',     packaging: 'boite',     ean: '340009467890', qty: 92,  reorder: 60,  batch: 'LIS-2043', expiry: '04/2028', price: 10.50,  cost: 6.20 },
+    { name: 'Ibuprofen 400mg',    strength: '400 mg',  form: 'comprime',     packaging: 'plaquette', ean: '340009478901', qty: 31,  reorder: 80,  batch: 'IBU-9931', expiry: '12/2026', price: 5.20,  cost: 2.70 },
+    { name: 'Cetirizine 10mg',    strength: '10 mg',   form: 'comprime',     packaging: 'plaquette', ean: '340009489012', qty: 208, reorder: 45,  batch: 'CET-5507', expiry: '08/2028', price: 6.80,  cost: 4.30 },
+    { name: 'Insulin Glargine',   strength: '100 U/mL', form: 'sol-injectable', packaging: 'seringue', ean: '340009490123', qty: 12,  reorder: 20,  batch: 'INS-8812', expiry: '02/2027', price: 1450.00, cost: 950.00 },
+    { name: 'Paracetamol 500mg',  strength: '500 mg',  form: 'comprime',     packaging: 'boite',     ean: '340009501234', qty: 640, reorder: 150, batch: 'PAR-1002', expiry: '10/2028', price: 3.20,  cost: 1.60 },
+    { name: 'Azithromycin 250mg', strength: '250 mg',  form: 'comprime',     packaging: 'plaquette', ean: '340009512345', qty: 44,  reorder: 40,  batch: 'AZI-6634', expiry: '05/2027', price: 52.00,  cost: 31.00 },
+    { name: 'Warfarin 5mg',       strength: '5 mg',    form: 'comprime',     packaging: 'plaquette', ean: '340009523456', qty: 9,   reorder: 30,  batch: 'WAR-4419', expiry: '07/2026', price: 11.50,  cost: 6.60 },
+    { name: 'Amoxicillin Syrup',  strength: '250 mg/5 mL', form: 'susp-buvable', packaging: 'flacon', ean: '340009534567', qty: 48,  reorder: 20,  batch: 'AMS-7781', expiry: '02/2027', price: 165.00,  cost: 98.00 },
+    { name: 'Diclofenac Gel',     strength: '1 %',     form: 'gel',          packaging: 'tube',      ean: '340009545678', qty: 63,  reorder: 25,  batch: 'DIC-3390', expiry: '11/2027', price: 240.00,  cost: 138.00 }
   ].map(function (m) {
     m.barcode = ean13(m.ean);
     delete m.ean;
@@ -335,22 +335,54 @@
   function isLow(m) { return m.qty < m.reorder; }
   function lowStockCount() { return medicines().filter(isLow).length; }
 
-  function addStock(name, units) {
+  function barcodeOwner(barcode, exceptName) {
+    var target = String(barcode || '').trim();
+    if (!target) return null;
+    return load().medicines.find(function (m) {
+      return m.barcode === target && m.name !== exceptName;
+    }) || null;
+  }
+
+  /* Adding units to a medicine already on the shelf needs nothing but the
+     count. Creating one needs its barcode and its pricing — those are facts
+     about the product, and inventing them would put wrong numbers into the
+     profit figures. */
+  function addStock(name, units, details) {
+    var d = details || {};
     var existing = findMedicine(name);
     if (existing) {
       existing.qty += units;
-    } else {
-      existing = {
-        name: String(name).trim(), strength: '', form: 'comprime', packaging: 'boite',
-        qty: units, reorder: Math.max(10, Math.round(units / 4)),
-        batch: 'NEW-' + Math.floor(1000 + Math.random() * 9000),
-        expiry: '12/2028', price: 1.00, cost: 0.60,
-        barcode: ean13(String(340009900000 + Math.floor(Math.random() * 99999)).slice(0, 12))
-      };
-      load().medicines.unshift(existing);
+      save();
+      return { ok: true, medicine: existing, created: false };
     }
+
+    var barcode = String(d.barcode || '').trim();
+    if (!barcode) return { ok: false, field: 'barcode', message: 'Barcode is required for a new medicine' };
+    if (!/^\d{6,14}$/.test(barcode)) return { ok: false, field: 'barcode', message: 'A barcode is 6 to 14 digits' };
+    var clash = barcodeOwner(barcode);
+    if (clash) return { ok: false, field: 'barcode', message: 'That barcode already belongs to ' + clash.name };
+
+    var price = Number(d.price), cost = Number(d.cost);
+    if (!isFinite(price) || price <= 0) return { ok: false, field: 'price', message: 'Enter a selling price' };
+    if (!isFinite(cost) || cost < 0) return { ok: false, field: 'cost', message: 'Enter a cost' };
+    if (cost > price) return { ok: false, field: 'cost', message: 'Cost is higher than the selling price' };
+
+    var created = {
+      name: String(name).trim(),
+      strength: String(d.strength || '').trim(),
+      form: d.form || 'comprime',
+      packaging: d.packaging || 'boite',
+      qty: units,
+      reorder: Math.max(10, Math.round(units / 4)),
+      batch: 'NEW-' + Math.floor(1000 + Math.random() * 9000),
+      expiry: d.expiry || '12/2028',
+      price: Math.round(price * 100) / 100,
+      cost: Math.round(cost * 100) / 100,
+      barcode: barcode
+    };
+    load().medicines.unshift(created);
     save();
-    return existing;
+    return { ok: true, medicine: created, created: true };
   }
 
   /* ------------------------------------------------------------------ *
@@ -759,6 +791,7 @@
     load: load, save: save, reset: reset,
     medicines: medicines, findMedicine: findMedicine, findByBarcode: findByBarcode,
     isLow: isLow, lowStockCount: lowStockCount, addStock: addStock,
+    barcodeOwner: barcodeOwner,
     prescriptions: prescriptions, nextCode: nextCode, findByCode: findByCode,
     createPrescription: createPrescription, checkAvailability: checkAvailability, fill: fill,
     summarise: summarise, unitsIn: unitsIn, defaultRoute: defaultRoute,

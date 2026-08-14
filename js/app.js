@@ -38,14 +38,36 @@
     });
   }
 
+  /* Algerian dinar. fr-DZ renders "1 234,50 DA", which is how prices are
+     written locally; a fixed format keeps totals aligned in tabular columns. */
+  var DZD = {};
   function money(value, decimals) {
     var d = decimals === undefined ? 2 : decimals;
-    return '$' + Number(value).toLocaleString('en-US', {
-      minimumFractionDigits: d, maximumFractionDigits: d
-    });
+    var key = String(d);
+    if (!DZD[key]) {
+      try {
+        DZD[key] = new Intl.NumberFormat('fr-DZ', {
+          style: 'currency', currency: 'DZD',
+          minimumFractionDigits: d, maximumFractionDigits: d
+        });
+      } catch (e) {
+        DZD[key] = { format: function (v) {
+          return Number(v).toFixed(d) + ' DA';
+        } };
+      }
+    }
+    return DZD[key].format(Number(value) || 0);
   }
 
   function units(n) { return n + (Number(n) === 1 ? ' unit' : ' units'); }
+
+  /* Chart labels need to stay short; the decimal comma matches money(). */
+  function compactMoney(value) {
+    var v = Number(value) || 0;
+    if (v >= 1000000) return (v / 1000000).toFixed(1).replace('.', ',') + ' M DA';
+    if (v >= 1000) return (v / 1000).toFixed(1).replace('.', ',') + 'k DA';
+    return money(v, 0);
+  }
 
   function ago(timestamp) {
     if (!timestamp) return '';
@@ -252,7 +274,8 @@
   var flashOn = false;
   var scanner = new window.PharmaScanner.Scanner(video);
   var pending = null;        // the decoded payload awaiting a decision
-  var barcodeIntent = null;  // 'sheet' | 'draft' when manual entry asked for a scan
+  var barcodeIntent = null;      // 'sheet' | 'draft' | 'stock' — who asked for a scan
+  var stockBarcodeDraft = null;  // add-stock fields held across the scan
 
   function setCamState(visible, opts) {
     var box = $('#cam-state');
@@ -364,6 +387,29 @@
 
     /* Manual entry asked for a medicine barcode: resolve it and go straight
        back to the line editor rather than opening the dispensing sheet. */
+    if (barcodeIntent === 'stock' && parsed.kind === 'barcode') {
+      barcodeIntent = null;
+      var draft = stockBarcodeDraft || {};
+      stockBarcodeDraft = null;
+      var owner = Store.barcodeOwner(parsed.barcode);
+      go('inventory');
+      openStockSheet(owner ? owner.name : draft.name, parsed.barcode);
+      // Restore what was already typed, so the scan does not cost that work.
+      if (!owner) {
+        stockForm.elements.qty.value = draft.qty || '';
+        stockForm.elements.price.value = draft.price || '';
+        stockForm.elements.cost.value = draft.cost || '';
+        stockForm.elements.strength.value = draft.strength || '';
+        if (draft.form) stockForm.elements.form.value = draft.form;
+        if (draft.packaging) stockForm.elements.packaging.value = draft.packaging;
+        reflectStockTarget();
+      }
+      toast(owner
+        ? parsed.barcode + ' is ' + owner.name + ' — adding to its stock'
+        : 'Barcode ' + parsed.barcode + ' captured');
+      return;
+    }
+
     if (barcodeIntent && parsed.kind === 'barcode') {
       var med = Store.findByBarcode(parsed.barcode);
       var intent = barcodeIntent;
@@ -1090,11 +1136,13 @@
   var scrim = $('#scrim');
   var stockForm = $('#stock-form');
 
-  function openStockSheet(prefillName) {
+  function openStockSheet(prefillName, prefillBarcode) {
     hideToast();
     stockForm.reset();
     $$('.field', stockForm).forEach(function (f) { f.classList.remove('is-bad'); });
     if (prefillName) stockForm.elements.name.value = prefillName;
+    if (prefillBarcode) stockForm.elements.barcode.value = prefillBarcode;
+    reflectStockTarget();
 
     scrim.hidden = false;
     requestAnimationFrame(function () { scrim.classList.add('is-on'); });
@@ -1112,6 +1160,41 @@
     $$('.field', stockForm).forEach(function (f) { f.classList.remove('is-bad'); });
   }
 
+  /* The form asks for a barcode and pricing only when the medicine is new;
+     for one already on the shelf those are facts we hold already. */
+  function reflectStockTarget() {
+    var name = stockForm.elements.name.value.trim();
+    var med = name ? Store.findMedicine(name) : null;
+    var isNew = Boolean(name) && !med;
+
+    $('#s-new').hidden = !isNew;
+    $('#s-known').hidden = !med;
+    if (med) {
+      $('#s-known').textContent = med.name + ' · ' + units(med.qty) + ' in stock · ' +
+        money(med.price) + ' / unit · barcode ' + med.barcode;
+    }
+    $('#stock-save').textContent = isNew ? 'Create medicine' : 'Add to Inventory';
+  }
+
+  fillSelect($('#s-form'), V.FORMS);
+  fillSelect($('#s-packaging'), V.PACKAGINGS);
+
+  $('#s-scan').addEventListener('click', function () {
+    barcodeIntent = 'stock';
+    stockBarcodeDraft = {
+      name: stockForm.elements.name.value.trim(),
+      qty: stockForm.elements.qty.value,
+      price: stockForm.elements.price.value,
+      cost: stockForm.elements.cost.value,
+      strength: stockForm.elements.strength.value,
+      form: stockForm.elements.form.value,
+      packaging: stockForm.elements.packaging.value
+    };
+    closeStockSheet();
+    go('scanner');
+    toast('Point the camera at the box barcode');
+  });
+
   $('#fab-add').addEventListener('click', function () { openStockSheet(); });
   $('#stock-cancel').addEventListener('click', closeStockSheet);
   scrim.addEventListener('click', function () {
@@ -1125,6 +1208,7 @@
   stockForm.addEventListener('input', function (event) {
     var field = event.target.closest('.field');
     if (field) field.classList.remove('is-bad');
+    if (event.target.name === 'name') reflectStockTarget();
   });
 
   stockForm.addEventListener('submit', function (event) {
@@ -1137,14 +1221,26 @@
     if (!qty || qty === 0) { markBad(stockForm.elements.qty, 'Enter an amount'); ok = false; }
     if (!ok) return;
 
-    var item;
     if (qty < 0) {
-      item = adjust(name, qty);
-      if (!item) { markBad(stockForm.elements.name, 'Not in the catalogue'); return; }
-      toast('Taken ' + Math.abs(qty) + ' · ' + item.name + ' now ' + units(item.qty));
+      var reduced = adjust(name, qty);
+      if (!reduced) { markBad(stockForm.elements.name, 'Not in the catalogue'); return; }
+      toast('Taken ' + Math.abs(qty) + ' · ' + reduced.name + ' now ' + units(reduced.qty));
     } else {
-      item = Store.addStock(name, qty);
-      toast('Added ' + qty + ' · ' + item.name + ' now ' + units(item.qty));
+      var out = Store.addStock(name, qty, {
+        barcode: stockForm.elements.barcode.value.trim(),
+        price: stockForm.elements.price.value,
+        cost: stockForm.elements.cost.value,
+        strength: stockForm.elements.strength.value.trim(),
+        form: stockForm.elements.form.value,
+        packaging: stockForm.elements.packaging.value
+      });
+      if (!out.ok) {
+        markBad(stockForm.elements[out.field] || stockForm.elements.name, out.message);
+        return;
+      }
+      toast(out.created
+        ? out.medicine.name + ' created · ' + units(out.medicine.qty) + ' in stock'
+        : 'Added ' + qty + ' · ' + out.medicine.name + ' now ' + units(out.medicine.qty));
     }
 
     closeStockSheet();
@@ -1264,9 +1360,7 @@
       var x = slot * i + (slot - barW) / 2;
       var y = padTop + plot - height;
       var fill = (bar === peak && bar.value > 0) ? 'url(#barPeak)' : '#C9E0FA';
-      var label = bar.value >= 1000
-        ? '$' + (bar.value / 1000).toFixed(1) + 'k'
-        : '$' + Math.round(bar.value);
+      var label = compactMoney(bar.value);
 
       svg.push('<rect class="bar" x="' + x + '" y="' + y + '" width="' + barW +
         '" height="' + height + '" rx="8" fill="' + fill + '"/>');

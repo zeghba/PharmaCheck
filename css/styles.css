@@ -1884,3 +1884,14 @@ html.role-vendor .pricerow { display: none; }
   margin-top: 0;
   box-shadow: 0 6px 18px rgba(224, 59, 69, .3);
 }
+
+/* An explanatory note, rather than a warning, above the new-medicine fields */
+.sheet__note--info {
+  background: var(--blue-100);
+  color: var(--blue-700);
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+#stock-form .sheetscroll { gap: 14px; }
+/* #s-new is one child of the scroll area, so it needs its own rhythm. */
+#s-new { display: flex; flex-direction: column; gap: 14px; }
