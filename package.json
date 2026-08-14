@@ -1,0 +1,26 @@
+{
+  "name": "pharmacheck",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "dependencies": {
+    "expo": "^57.0.12",
+    "expo-constants": "~57.0.10",
+    "expo-splash-screen": "~57.0.6",
+    "expo-status-bar": "~57.0.1",
+    "expo-updates": "~57.0.13",
+    "react": "19.2.3",
+    "react-native": "0.86.2",
+    "react-native-webview": "13.16.1"
+  },
+  "scripts": {
+    "bundle:web": "node scripts/bundle-web.js",
+    "postinstall": "node scripts/bundle-web.js",
+    "prestart": "node scripts/bundle-web.js",
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "doctor": "npx expo-doctor",
+    "verify:qr": "python3 test/verify-qr.py"
+  }
+}

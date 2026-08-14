@@ -14,6 +14,22 @@
   var phone = $('.phone');
 
   /* ------------------------------------------------------------------ *
+   * Native shell bridge
+   *
+   * No-ops in a plain browser. Inside the Expo WebView it lets the native
+   * side tint the real status bar per screen and route the Android back
+   * button back into this app instead of closing it.
+   * ------------------------------------------------------------------ */
+  var isNative = Boolean(window.__PHARMACHECK_NATIVE__ && window.ReactNativeWebView);
+
+  function postToNative(message) {
+    if (!isNative) return;
+    try {
+      window.ReactNativeWebView.postMessage(JSON.stringify(message));
+    } catch (e) { /* bridge unavailable */ }
+  }
+
+  /* ------------------------------------------------------------------ *
    * Toast
    * ------------------------------------------------------------------ */
   var toastEl = $('#toast');
@@ -91,7 +107,17 @@
     if (screen.classList.contains('screen--scroll')) screen.scrollTop = 0;
 
     current = name;
+    postToNative({ type: 'screen', name: name, dark: name === 'scanner' });
   }
+
+  /* Android hardware back. Closes whatever is open, then walks back to the
+     dashboard; the native side exits the app once we are already there. */
+  window.__pharmacheckBack = function () {
+    if (stockSheet.classList.contains('is-open')) { closeStockSheet(); return; }
+    if (camera.classList.contains('is-locked')) { resetScanner(); return; }
+    if (current === 'manual') { go('scanner'); return; }
+    go('dashboard');
+  };
 
   document.addEventListener('click', function (event) {
     var trigger = event.target.closest('[data-go]');

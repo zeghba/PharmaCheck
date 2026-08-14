@@ -8,6 +8,11 @@
 <title>PharmaCheck</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%231A73E8'/><path d='M10 9h8a5 5 0 0 1 0 10h-4v5h-4z' fill='white'/></svg>">
 <link rel="stylesheet" href="css/styles.css">
+<script>
+  /* The native shell sets this before any document script runs, so the mock
+     status bar and phone frame can be dropped before first paint. */
+  if (window.__PHARMACHECK_NATIVE__) document.documentElement.classList.add('is-native');
+</script>
 </head>
 <body>
 

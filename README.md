@@ -81,12 +81,93 @@ pip install qrcode
 python3 test/verify-qr.py
 ```
 
+## Android app (Expo) and OTA updates
+
+The same UI ships as an Android app. An Expo shell renders the web app in a
+WebView, so the APK and the browser run byte-identical HTML, CSS and
+JavaScript — there is no second implementation to keep in sync.
+
+`scripts/bundle-web.js` inlines `index.html`, `css/styles.css`, `js/qr.js` and
+`js/app.js` into one self-contained HTML string at `src/webBundle.generated.js`,
+which the WebView renders via `source={{ html }}`. Because the whole UI lives
+inside the JS bundle, **every part of the interface is updatable over the air** —
+a CSS tweak or a new screen ships without a new APK.
+
+The shell adds the things a web page cannot do for itself:
+
+- **OTA updates** (`src/useOtaUpdates.js`) — checks on launch and on every
+  return to the foreground, rate-limited to once every 5 minutes. A downloaded
+  update never applies itself mid-task; a banner offers a restart and the user
+  decides. Offline or unreachable-server failures are swallowed, leaving the app
+  on the bundle it already has.
+- **Real status bar**, tinted per screen — it turns dark when the scanner opens.
+- **Android hardware back**, routed into the app: closes an open sheet, then a
+  scan result, then walks back to the dashboard before letting the system exit.
+
+Inside the shell the web app sets `html.is-native`, which drops the simulated
+status bar and home indicator so the device's own chrome shows instead.
+
+### Building it
+
+Requires an Expo account. Nothing below has been run against an account yet —
+`eas init` is what generates the real project ID and update URL.
+
+```bash
+npm install                 # also regenerates src/webBundle.generated.js
+npx eas login
+npx eas init                # adds extra.eas.projectId to app.json
+npx eas update:configure    # adds updates.url to app.json
+npx eas build --profile preview --platform android
+```
+
+The `preview` profile in `eas.json` sets `buildType: "apk"` with internal
+distribution, so it produces an installable APK rather than a Play Store bundle.
+
+### Shipping an OTA update
+
+```bash
+npm run bundle:web
+npx eas update --branch preview --message "Adjust inventory thresholds"
+```
+
+Installed builds pick it up on their next launch or foreground.
+
+**The one rule:** `runtimeVersion` uses the `appVersion` policy, so an update
+only reaches builds with a matching `version` in `app.json`. Changing JS, CSS or
+HTML is fine over the air. Changing anything native — bumping the Expo SDK,
+adding a config plugin, changing permissions — needs a version bump and a fresh
+APK, or existing installs will simply ignore the update.
+
+Until `eas init` and `eas update:configure` have run, `Updates.isEnabled` is
+false, the update hook no-ops, and the app runs as a plain offline shell.
+
+### Verified so far
+
+`npx expo export --platform android` bundles cleanly (598 modules) and
+`npx expo-doctor` passes 20/20. The inlined bundle was exercised in a headless
+browser with the native bridge stubbed: screen messages, hardware-back routing,
+QR generation and the native-chrome rules all behave. The EAS build and OTA
+publish themselves are unrun — they need your account.
+
 ## Layout
 
 ```
-index.html          markup for all five screens, plus the SVG icon sprite
-css/styles.css      design tokens, phone shell, per-screen styles, print sheet
-js/qr.js            QR Code encoder (also usable as a CommonJS module)
-js/app.js           routing, camera, code generation, inventory, reports
-test/verify-qr.py   encoder verification against a reference implementation
+index.html                    markup for all five screens, plus the icon sprite
+css/styles.css                design tokens, phone shell, screens, native mode
+js/qr.js                      QR Code encoder (also a CommonJS module)
+js/app.js                     routing, camera, codes, inventory, reports
+test/verify-qr.py             encoder verification against a reference impl
+
+App.js                        native shell: WebView + status bar + back button
+index.js                      Expo entry point
+src/useOtaUpdates.js          OTA check / download / apply lifecycle
+src/UpdateBanner.js           "Update ready — Restart" banner
+src/webBundle.generated.js    generated; the inlined single-file web app
+scripts/bundle-web.js         the inliner (postinstall, prestart, bundle:web)
+app.json / eas.json           Expo config and build profiles
+assets/                       app icon, adaptive icon, splash
 ```
+
+`src/webBundle.generated.js` is committed so a build works even with install
+scripts disabled, but it is generated output — edit the web sources and rerun
+`npm run bundle:web` rather than touching it.
