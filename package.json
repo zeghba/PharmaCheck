@@ -22,6 +22,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "doctor": "npx expo-doctor",
-    "verify:qr": "python3 test/verify-qr.py"
+    "verify:qr": "python3 test/verify-qr.py",
+    "build:standalone": "npm run bundle:web && node -e \"const fs=require('fs');const m=fs.readFileSync('src/webBundle.generated.js','utf8');fs.writeFileSync('PharmaCheck.html',JSON.parse(m.slice(m.indexOf('export default ')+15).trim().replace(/;\\s*$/,'')));console.log('PharmaCheck.html written')\""
   }
 }
