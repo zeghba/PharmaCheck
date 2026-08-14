@@ -102,55 +102,30 @@
         <div class="metricgrid">
           <div class="card metric">
             <p class="metric__label">Prescriptions Filled</p>
-            <p class="metric__value">42</p>
-            <p class="metric__delta metric__delta--up"><svg class="icon icon--xs"><use href="#i-trend"/></svg> 8 more than yesterday</p>
+            <p class="metric__value" id="dash-filled">—</p>
+            <p class="metric__delta" id="dash-filled-delta"></p>
           </div>
           <div class="card metric">
             <p class="metric__label">Low Stock Items</p>
             <p class="metric__value metric__value--alert" id="dash-low">—</p>
-            <p class="metric__delta metric__delta--down"><svg class="icon icon--xs"><use href="#i-alert"/></svg> Reorder required</p>
+            <p class="metric__delta metric__delta--down" id="dash-low-meta"></p>
           </div>
           <div class="card metric">
             <p class="metric__label">Awaiting Verification</p>
-            <p class="metric__value">3</p>
-            <p class="metric__delta"><svg class="icon icon--xs"><use href="#i-clock"/></svg> Oldest 12 min ago</p>
+            <p class="metric__value" id="dash-awaiting">—</p>
+            <p class="metric__delta" id="dash-awaiting-meta"></p>
           </div>
           <div class="card metric">
             <p class="metric__label">Revenue Today</p>
-            <p class="metric__value">$4,280</p>
-            <p class="metric__delta metric__delta--up"><svg class="icon icon--xs"><use href="#i-trend"/></svg> 6.2% vs average</p>
+            <p class="metric__value" id="dash-revenue">—</p>
+            <p class="metric__delta" id="dash-revenue-meta"></p>
           </div>
         </div>
 
         <div class="section-head">
           <h2 class="section-title">Recent Activity</h2>
         </div>
-        <ul class="card activity" id="activity-list">
-          <li class="activity__row">
-            <span class="activity__icon"><svg class="icon"><use href="#i-pill"/></svg></span>
-            <span class="activity__body">
-              <span class="activity__name">Amoxicillin 500mg</span>
-              <span class="activity__meta">M. Gonzalez · 21 capsules</span>
-            </span>
-            <span class="badge badge--green">Filled</span>
-          </li>
-          <li class="activity__row">
-            <span class="activity__icon"><svg class="icon"><use href="#i-pill"/></svg></span>
-            <span class="activity__body">
-              <span class="activity__name">Metformin 850mg</span>
-              <span class="activity__meta">J. Whitfield · 60 tablets</span>
-            </span>
-            <span class="badge badge--amber">Pending</span>
-          </li>
-          <li class="activity__row">
-            <span class="activity__icon"><svg class="icon"><use href="#i-pill"/></svg></span>
-            <span class="activity__body">
-              <span class="activity__name">Salbutamol Inhaler</span>
-              <span class="activity__meta">A. Rahman · 1 unit</span>
-            </span>
-            <span class="badge badge--green">Filled</span>
-          </li>
-        </ul>
+        <ul class="card activity" id="activity-list"></ul>
       </section>
 
       <!-- ===================== 2. SCANNER ===================== -->
@@ -158,23 +133,15 @@
         <div class="camera">
           <video class="camera__feed" id="camera-feed" playsinline muted autoplay></video>
 
-          <!-- Simulated document, shown until a real camera stream starts -->
-          <div class="camera__mock" id="camera-mock">
-            <div class="scene">
-              <div class="paper">
-                <div class="paper__head">
-                  <div>
-                    <p class="paper__clinic">NORTHSIDE MEDICAL CENTRE</p>
-                    <p class="paper__line paper__line--sm">Dr. E. Okafor · Lic. 44-208-119</p>
-                  </div>
-                  <div class="paper__rx">℞</div>
-                </div>
-                <div class="paper__rule"></div>
-                <p class="paper__line" style="width:78%"></p>
-                <p class="paper__line" style="width:54%"></p>
-                <div class="paper__qr" id="mock-qr"></div>
-                <p class="paper__line" style="width:66%"></p>
-                <p class="paper__line paper__line--sm" style="width:44%"></p>
+          <!-- Shown while the camera is starting, or when it is unavailable -->
+          <div class="camstate" id="cam-state">
+            <div class="camstate__inner">
+              <svg class="icon camstate__icon" id="cam-state-icon"><use href="#i-scan"/></svg>
+              <p class="camstate__title" id="cam-state-title">Starting camera…</p>
+              <p class="camstate__body" id="cam-state-body">Allow camera access to scan prescription codes.</p>
+              <div class="camstate__actions" id="cam-state-actions" hidden>
+                <button class="btn btn--soft" type="button" id="cam-retry">Try again</button>
+                <button class="btn btn--soft" type="button" data-go="manual">Enter manually</button>
               </div>
             </div>
           </div>
@@ -228,16 +195,11 @@
           <div class="sheet" id="scan-sheet" aria-hidden="true">
             <div class="sheet__grab"></div>
             <div class="sheet__head">
-              <span class="sheet__badge"><svg class="icon icon--xs"><use href="#i-check"/></svg> Code verified</span>
-              <span class="sheet__code" id="scan-code">PC-2026-0481</span>
+              <span class="sheet__badge" id="scan-badge"><svg class="icon icon--xs"><use href="#i-check"/></svg> <span id="scan-badge-text">Code verified</span></span>
+              <span class="sheet__code" id="scan-code">—</span>
             </div>
-            <dl class="kv">
-              <div class="kv__row"><dt>Patient</dt><dd>Maria Gonzalez</dd></div>
-              <div class="kv__row"><dt>Medication</dt><dd>Amoxicillin 500mg</dd></div>
-              <div class="kv__row"><dt>Dosage</dt><dd>1 capsule, 3× daily</dd></div>
-              <div class="kv__row"><dt>Quantity</dt><dd>21 capsules</dd></div>
-              <div class="kv__row"><dt>Prescriber</dt><dd>Dr. E. Okafor</dd></div>
-            </dl>
+            <dl class="kv" id="scan-details"></dl>
+            <p class="sheet__note" id="scan-note" hidden></p>
             <div class="sheet__actions">
               <button class="btn btn--ghost" type="button" id="scan-dismiss">Rescan</button>
               <button class="btn btn--primary" type="button" id="scan-fill">Fill Prescription</button>
@@ -464,6 +426,9 @@
 <div class="printsheet" id="printsheet" aria-hidden="true"></div>
 
 <script src="js/qr.js"></script>
+<script src="js/vendor/jsQR.min.js"></script>
+<script src="js/store.js"></script>
+<script src="js/scanner.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

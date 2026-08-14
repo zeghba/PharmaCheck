@@ -1345,3 +1345,59 @@ html.is-native .homebar { display: none; }
 html.is-native .tabbar { padding-bottom: env(safe-area-inset-bottom, 0px); }
 html.is-native .sheet--modal { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
 html.is-native .toast { bottom: calc(var(--tab-h) + 14px + env(safe-area-inset-bottom, 0px)); }
+
+/* ==================== CAMERA STATES (scanner screen) ==================== */
+.camstate {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: radial-gradient(120% 80% at 50% 40%, #23303F 0%, #131A24 60%, #0A1420 100%);
+}
+.camstate__inner { text-align: center; max-width: 300px; }
+.camstate__icon {
+  width: 44px;
+  height: 44px;
+  color: #6BA6F0;
+  margin-bottom: 14px;
+  stroke-width: 1.6;
+}
+.camstate__title {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -.2px;
+}
+.camstate__body {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, .68);
+}
+.camstate__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+/* Scanner result sheet: warning variant and explanatory note */
+.sheet__badge--warn { background: var(--amber-bg); color: var(--amber); }
+.sheet__note {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  background: var(--blue-50);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.btn:disabled {
+  opacity: .45;
+  box-shadow: none;
+  cursor: not-allowed;
+}
