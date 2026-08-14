@@ -11,7 +11,10 @@
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/8c401998-60ad-475c-ac52-564545426886"
+      "url": "https://u.expo.dev/8c401998-60ad-475c-ac52-564545426886",
+      "requestHeaders": {
+        "expo-channel-name": "preview"
+      }
     },
     "runtimeVersion": {
       "policy": "appVersion"
