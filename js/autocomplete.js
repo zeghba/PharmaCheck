@@ -56,6 +56,11 @@
       items = list;
       active = -1;
 
+      /* Nothing to choose means nothing to tap, so the empty panel lets
+         touches through to the field underneath — otherwise it swallows
+         the tap that was aimed at the next input and costs a second one. */
+      panel.classList.toggle('ac-panel--empty', !list.length);
+
       if (!list.length) {
         panel.innerHTML = '<p class="ac-empty">' +
           (opts.emptyText || 'No match — it will be added as a new entry') + '</p>';

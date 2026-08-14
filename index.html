@@ -529,6 +529,58 @@
         </button>
       </section>
 
+      <!-- ================== 6b. VENDOR SALES DETAIL ================== -->
+      <section class="screen screen--scroll" id="screen-vdetail" aria-label="Vendor sales detail">
+        <header class="apphead apphead--compact">
+          <button class="iconbtn iconbtn--ghost" type="button" data-go="vendors" aria-label="Back">
+            <svg class="icon"><use href="#i-back"/></svg>
+          </button>
+          <div>
+            <h1 class="apphead__title apphead__title--sm" id="vd-name">Vendor</h1>
+            <p class="apphead__sub" id="vd-sub">—</p>
+          </div>
+          <button class="iconbtn iconbtn--ghost" type="button" id="vd-edit" aria-label="Edit this vendor">
+            <svg class="icon"><use href="#i-pen"/></svg>
+          </button>
+        </header>
+
+        <div class="segmented" role="tablist" aria-label="Sales period">
+          <button class="segmented__btn is-on" type="button" role="tab" aria-selected="true" data-vdperiod="daily">Today</button>
+          <button class="segmented__btn" type="button" role="tab" aria-selected="false" data-vdperiod="weekly">7 days</button>
+          <button class="segmented__btn" type="button" role="tab" aria-selected="false" data-vdperiod="monthly">30 days</button>
+          <span class="segmented__pill" id="vdpill"></span>
+        </div>
+
+        <div class="duo">
+          <div class="card duo__card">
+            <p class="duo__label">Boxes sold</p>
+            <p class="duo__value" id="vd-boxes">0</p>
+            <p class="duo__meta" id="vd-boxes-meta">—</p>
+          </div>
+          <div class="card duo__card">
+            <p class="duo__label">Total sold</p>
+            <p class="duo__value duo__value--cost" id="vd-total">0</p>
+            <p class="duo__meta" id="vd-total-meta">—</p>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2 class="section-title">Medicines Sold</h2>
+          <span class="section-note">Line total</span>
+        </div>
+        <div class="card soldcard">
+          <ul class="soldlist" id="vd-lines"></ul>
+          <div class="soldtotal">
+            <span class="soldtotal__label">Total</span>
+            <span class="soldtotal__meta" id="vd-total-meta2">—</span>
+            <span class="soldtotal__value" id="vd-grand">0</span>
+          </div>
+        </div>
+
+        <div class="section-head"><h2 class="section-title">Every Sale</h2></div>
+        <ul class="card activity" id="vd-sales"></ul>
+      </section>
+
       <!-- ===================== 7. VENDOR HOME ===================== -->
       <section class="screen screen--fixed" id="screen-vhome" aria-label="Vendor home">
         <header class="apphead">
@@ -663,13 +715,23 @@
           </div>
           <p class="field__error" data-error-for="name"></p>
         </div>
-        <div class="field">
-          <label class="field__label" for="s-qty">Units received</label>
-          <div class="field__control">
-            <svg class="icon field__icon"><use href="#i-hash"/></svg>
-            <input id="s-qty" name="qty" type="number" inputmode="numeric" step="1" placeholder="120">
+        <div class="field-row">
+          <div class="field">
+            <label class="field__label" for="s-qty">Units received</label>
+            <div class="field__control">
+              <svg class="icon field__icon"><use href="#i-hash"/></svg>
+              <input id="s-qty" name="qty" type="number" inputmode="numeric" step="1" placeholder="120">
+            </div>
+            <p class="field__error" data-error-for="qty"></p>
           </div>
-          <p class="field__error" data-error-for="qty"></p>
+          <div class="field" id="s-expiry-field">
+            <label class="field__label" for="s-expiry">Expiry <span class="field__opt" id="s-expiry-opt" hidden>optional</span></label>
+            <div class="field__control">
+              <svg class="icon field__icon"><use href="#i-clock"/></svg>
+              <input id="s-expiry" name="expiry" type="text" inputmode="numeric" autocomplete="off" maxlength="7" placeholder="MM/YYYY">
+            </div>
+            <p class="field__error" data-error-for="expiry"></p>
+          </div>
         </div>
 
         <!-- Shown only when the medicine is not already on the shelf -->

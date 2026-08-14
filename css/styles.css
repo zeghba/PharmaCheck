@@ -1551,6 +1551,7 @@ html.is-native .toast { bottom: calc(var(--tab-h) + 14px + env(safe-area-inset-b
   animation: screen-in .16s ease;
 }
 .ac-panel::-webkit-scrollbar { display: none; }
+.ac-panel--empty { pointer-events: none; }
 
 .ac-row {
   width: 100%;
@@ -1780,6 +1781,47 @@ html.is-native .toast { bottom: calc(var(--tab-h) + 14px + env(safe-area-inset-b
   display: flex; flex-direction: column; align-items: flex-end;
 }
 .vendorcard__profit small { font-size: 10px; font-weight: 600; color: var(--muted); }
+
+/* The card is a row: tapping the body opens the sales breakdown, the pencil
+   opens the edit sheet. Two targets, so neither hides the other. */
+.vendorcard { display: flex; align-items: stretch; overflow: hidden; }
+.vendorcard__edit {
+  flex: none; width: 46px; border: 0; background: none; cursor: pointer;
+  display: grid; place-items: center; color: var(--muted);
+  border-left: 1px solid var(--line);
+}
+.vendorcard__edit:active { background: var(--blue-50); color: var(--blue-700); }
+
+/* ======================= VENDOR SALES BREAKDOWN ======================= */
+.soldcard { padding: 4px 0 0; }
+.soldlist { list-style: none; margin: 0; padding: 0; }
+.soldrow {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 15px; border-bottom: 1px solid var(--line);
+}
+.soldrow:last-child { border-bottom: 0; }
+.soldrow__body { flex: 1; min-width: 0; }
+.soldrow__name {
+  font-size: 13.5px; font-weight: 640; margin: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.soldrow__meta { font-size: 11.5px; color: var(--muted); margin: 2px 0 0; }
+.soldrow__total {
+  flex: none; font-size: 14px; font-weight: 720;
+  font-variant-numeric: tabular-nums;
+}
+.soldrow--empty { justify-content: center; padding: 20px 15px; }
+.soldtotal {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 13px 15px; background: var(--blue-50);
+  border-radius: 0 0 var(--r-md) var(--r-md);
+}
+.soldtotal__label { font-size: 13px; font-weight: 720; color: var(--blue-700); }
+.soldtotal__meta { flex: 1; font-size: 11px; color: var(--muted); }
+.soldtotal__value {
+  font-size: 17px; font-weight: 780; color: var(--blue-700);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ============================ VENDOR HOME ============================ */
 .metricgrid--tight { margin-bottom: 14px; }

@@ -347,11 +347,34 @@
      count. Creating one needs its barcode and its pricing — those are facts
      about the product, and inventing them would put wrong numbers into the
      profit figures. */
+  /* MM/YYYY, and not already past — a delivery that expired last month is a
+     data-entry slip, not stock. */
+  function validExpiry(value) {
+    var m = /^(\d{2})\/(\d{4})$/.exec(String(value || '').trim());
+    if (!m) return null;
+    var month = Number(m[1]), year = Number(m[2]);
+    if (month < 1 || month > 12) return null;
+    var now = new Date();
+    if (year < now.getFullYear() || (year === now.getFullYear() && month < now.getMonth() + 1)) {
+      return { expired: true };
+    }
+    return { value: m[1] + '/' + m[2] };
+  }
+
   function addStock(name, units, details) {
     var d = details || {};
     var existing = findMedicine(name);
+
+    var expiry = null;
+    if (d.expiry !== undefined && String(d.expiry).trim() !== '') {
+      expiry = validExpiry(d.expiry);
+      if (!expiry) return { ok: false, field: 'expiry', message: 'Use MM/YYYY, e.g. 06/2028' };
+      if (expiry.expired) return { ok: false, field: 'expiry', message: 'That date has already passed' };
+    }
+
     if (existing) {
       existing.qty += units;
+      if (expiry) existing.expiry = expiry.value;
       save();
       return { ok: true, medicine: existing, created: false };
     }
@@ -361,6 +384,8 @@
     if (!/^\d{6,14}$/.test(barcode)) return { ok: false, field: 'barcode', message: 'A barcode is 6 to 14 digits' };
     var clash = barcodeOwner(barcode);
     if (clash) return { ok: false, field: 'barcode', message: 'That barcode already belongs to ' + clash.name };
+
+    if (!expiry) return { ok: false, field: 'expiry', message: 'Expiry date is required for a new medicine' };
 
     var price = Number(d.price), cost = Number(d.cost);
     if (!isFinite(price) || price <= 0) return { ok: false, field: 'price', message: 'Enter a selling price' };
@@ -375,7 +400,7 @@
       qty: units,
       reorder: Math.max(10, Math.round(units / 4)),
       batch: 'NEW-' + Math.floor(1000 + Math.random() * 9000),
-      expiry: d.expiry || '12/2028',
+      expiry: expiry.value,
       price: Math.round(price * 100) / 100,
       cost: Math.round(cost * 100) / 100,
       barcode: barcode
@@ -785,6 +810,41 @@
       .slice().sort(function (a, b) { return b.at - a.at; }).slice(0, limit || 8);
   }
 
+  /* Everything a vendor sold in a period, grouped so the manager sees one
+     row per medicine-and-price. Grouping on price as well as name matters:
+     prices are captured at the moment of sale, so the same medicine sold
+     before and after a price change is genuinely two different lines. */
+  function vendorBreakdown(vendorId, period) {
+    var spans = { daily: DAY, weekly: DAY * 7, monthly: DAY * 30 };
+    var span = spans[period] || spans.daily;
+    var end = startOfDay(Date.now()) + DAY;
+    var from = end - span;
+
+    var list = salesBetween(from, end, vendorId);
+    var groups = {};
+    list.forEach(function (sale) {
+      var key = sale.medicine + '|' + sale.unitPrice;
+      var g = groups[key] || (groups[key] = {
+        medicine: sale.medicine, unitPrice: sale.unitPrice, unitCost: sale.unitCost,
+        boxes: 0, total: 0, profit: 0
+      });
+      g.boxes += sale.boxes;
+      g.total += sale.unitPrice * sale.boxes;
+      g.profit += (sale.unitPrice - sale.unitCost) * sale.boxes;
+    });
+
+    var lines = Object.keys(groups).map(function (k) { return groups[k]; })
+      .sort(function (a, b) { return b.total - a.total; });
+
+    return {
+      lines: lines,
+      sales: list.slice().sort(function (a, b) { return b.at - a.at; }),
+      totals: saleTotals(list),
+      rangeFrom: from,
+      rangeTo: end
+    };
+  }
+
   function reset() { db = fresh(); save(); }
 
   global.PharmaStore = {
@@ -807,6 +867,7 @@
     // pricing and counter sales
     setPricing: setPricing,
     sales: sales, recordSale: recordSale, recentSales: recentSales,
-    salesBetween: salesBetween, saleTotals: saleTotals, vendorStats: vendorStats
+    salesBetween: salesBetween, saleTotals: saleTotals, vendorStats: vendorStats,
+    vendorBreakdown: vendorBreakdown, validExpiry: validExpiry
   };
 })(typeof self !== 'undefined' ? self : this);

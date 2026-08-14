@@ -114,12 +114,13 @@
   var TAB_FOR_SCREEN = {
     dashboard: 'dashboard', scanner: 'scanner', manual: 'scanner',
     inventory: 'inventory', reports: 'reports', vendors: 'vendors',
+    vdetail: 'vendors',
     vhome: 'vhome', vsell: 'vsell', vsales: 'vsales'
   };
 
   /* What each role may reach. The guard in go() is the single place this is
      enforced, so a stray link cannot land a vendor on a manager screen. */
-  var MANAGER_SCREENS = ['dashboard', 'scanner', 'manual', 'inventory', 'reports', 'vendors'];
+  var MANAGER_SCREENS = ['dashboard', 'scanner', 'manual', 'inventory', 'reports', 'vendors', 'vdetail'];
   var VENDOR_SCREENS = ['vhome', 'vsell', 'vsales'];
 
   var current = 'dashboard';
@@ -160,6 +161,7 @@
     if (name === 'dashboard') renderDashboard();
     if (name === 'inventory') renderStock();
     if (name === 'vendors') { renderVendors(); requestAnimationFrame(moveVendPill); }
+    if (name === 'vdetail') { renderVendorDetail(); requestAnimationFrame(moveVdPill); }
     if (name === 'vhome') renderVendorHome();
     if (name === 'vsales') { renderVendorSales(); requestAnimationFrame(moveSalesPill); }
     if (name === 'reports') {
@@ -187,6 +189,7 @@
     if (!account) return;
     if (account.role === Store.VENDOR) { go('vhome'); return; }
     if (current === 'manual') { go('scanner'); return; }
+    if (current === 'vdetail') { go('vendors'); return; }
     go('dashboard');
   };
 
@@ -397,6 +400,7 @@
       // Restore what was already typed, so the scan does not cost that work.
       if (!owner) {
         stockForm.elements.qty.value = draft.qty || '';
+        stockForm.elements.expiry.value = draft.expiry || '';
         stockForm.elements.price.value = draft.price || '';
         stockForm.elements.cost.value = draft.cost || '';
         stockForm.elements.strength.value = draft.strength || '';
@@ -1142,7 +1146,7 @@
     $$('.field', stockForm).forEach(function (f) { f.classList.remove('is-bad'); });
     if (prefillName) stockForm.elements.name.value = prefillName;
     if (prefillBarcode) stockForm.elements.barcode.value = prefillBarcode;
-    reflectStockTarget();
+    reflectStockTarget(true);
 
     scrim.hidden = false;
     requestAnimationFrame(function () { scrim.classList.add('is-on'); });
@@ -1161,8 +1165,14 @@
   }
 
   /* The form asks for a barcode and pricing only when the medicine is new;
-     for one already on the shelf those are facts we hold already. */
-  function reflectStockTarget() {
+     for one already on the shelf those are facts we hold already. The expiry
+     is asked for either way — a delivery of an existing medicine arrives with
+     its own date — but it is only compulsory when creating the medicine.
+     `prefill` is off while the user is typing the name, so a date they have
+     already entered is never overwritten under their fingers. */
+  var autoExpiry = '';
+
+  function reflectStockTarget(prefill) {
     var name = stockForm.elements.name.value.trim();
     var med = name ? Store.findMedicine(name) : null;
     var isNew = Boolean(name) && !med;
@@ -1171,10 +1181,25 @@
     $('#s-known').hidden = !med;
     if (med) {
       $('#s-known').textContent = med.name + ' · ' + units(med.qty) + ' in stock · ' +
-        money(med.price) + ' / unit · barcode ' + med.barcode;
+        money(med.price) + ' / unit · expires ' + med.expiry + ' · barcode ' + med.barcode;
+    }
+    $('#s-expiry-opt').hidden = isNew;
+    var field = stockForm.elements.expiry;
+    if (med && (prefill || field.value === '' || field.value === autoExpiry)) {
+      autoExpiry = med.expiry || '';
+      field.value = autoExpiry;
     }
     $('#stock-save').textContent = isNew ? 'Create medicine' : 'Add to Inventory';
   }
+
+  /* Type 062028 and get 06/2028 — the slash appears on its own so the field
+     never fights a numeric keypad that has no "/" key. */
+  $('#s-expiry').addEventListener('input', function () {
+    var el = this;
+    var digits = el.value.replace(/\D/g, '').slice(0, 6);
+    var next = digits.length > 2 ? digits.slice(0, 2) + '/' + digits.slice(2) : digits;
+    if (next !== el.value) el.value = next;
+  });
 
   fillSelect($('#s-form'), V.FORMS);
   fillSelect($('#s-packaging'), V.PACKAGINGS);
@@ -1184,6 +1209,7 @@
     stockBarcodeDraft = {
       name: stockForm.elements.name.value.trim(),
       qty: stockForm.elements.qty.value,
+      expiry: stockForm.elements.expiry.value,
       price: stockForm.elements.price.value,
       cost: stockForm.elements.cost.value,
       strength: stockForm.elements.strength.value,
@@ -1228,6 +1254,7 @@
     } else {
       var out = Store.addStock(name, qty, {
         barcode: stockForm.elements.barcode.value.trim(),
+        expiry: stockForm.elements.expiry.value.trim(),
         price: stockForm.elements.price.value,
         cost: stockForm.elements.cost.value,
         strength: stockForm.elements.strength.value.trim(),
@@ -1595,6 +1622,10 @@
             '<span class="vendorcard__profit">' + money(st.profit) +
               '<small>profit</small></span>' +
           '</button>' +
+          '<button class="vendorcard__edit" type="button" data-vendor-edit="' + escapeHtml(v.id) + '"' +
+            ' aria-label="Edit ' + escapeHtml(v.name) + '">' +
+            '<svg class="icon icon--xs"><use href="#i-pen"/></svg>' +
+          '</button>' +
         '</li>';
     }).join('') : '<li class="emptystate">No vendor accounts yet.</li>';
   }
@@ -1655,8 +1686,10 @@
   $('#vendor-add').addEventListener('click', function () { openVendorSheet(null); });
   $('#vendor-cancel').addEventListener('click', closeVendorSheet);
   $('#vendor-list').addEventListener('click', function (event) {
+    var edit = event.target.closest('[data-vendor-edit]');
+    if (edit) { openVendorSheet(edit.dataset.vendorEdit); return; }
     var btn = event.target.closest('[data-vendor]');
-    if (btn) openVendorSheet(btn.dataset.vendor);
+    if (btn) openVendorDetail(btn.dataset.vendor);
   });
 
   vendorForm.addEventListener('input', function (event) {
@@ -1680,18 +1713,102 @@
     var wasEditing = Boolean(editingVendor);
     closeVendorSheet();
     renderVendors();
+    if (current === 'vdetail') renderVendorDetail();
     toast(wasEditing ? out.account.name + ' updated' : out.account.name + ' added as a vendor');
   });
 
   $('#vendor-remove').addEventListener('click', function () {
     if (!editingVendor) return;
     var name = editingVendor.name;
-    var out = Store.removeVendor(editingVendor.id);
+    var removed = editingVendor.id;
+    var out = Store.removeVendor(removed);
     closeVendorSheet();
     renderVendors();
+    /* A hard-deleted vendor has no breakdown left to show. */
+    if (current === 'vdetail' && detailVendor === removed && !out.deactivated) go('vendors');
+    else if (current === 'vdetail') renderVendorDetail();
     toast(out.deactivated
       ? name + ' deactivated — past sales are kept'
       : name + ' removed');
+  });
+
+  /* ---- what a vendor sold: medicines, prices, totals -----------------
+     Lines are grouped by medicine *and* unit price, because the price is
+     captured on the sale. If the manager reprices mid-period the same
+     medicine legitimately appears twice, at each price it went out at. */
+  var detailVendor = null;
+  var vdPeriod = 'daily';
+
+  function openVendorDetail(id) {
+    var vendor = Store.findAccount(id);
+    if (!vendor) return;
+    detailVendor = id;
+    vdPeriod = vendorPeriod;
+    $$('[data-vdperiod]').forEach(function (o) {
+      var on = o.dataset.vdperiod === vdPeriod;
+      o.classList.toggle('is-on', on);
+      o.setAttribute('aria-selected', String(on));
+    });
+    go('vdetail');
+  }
+
+  function renderVendorDetail() {
+    var vendor = detailVendor ? Store.findAccount(detailVendor) : null;
+    if (!vendor) { go('vendors'); return; }
+    var bd = Store.vendorBreakdown(vendor.id, vdPeriod);
+    var span = new Date(bd.rangeFrom).toLocaleDateString([], { day: 'numeric', month: 'short' }) +
+      ' – ' + new Date(bd.rangeTo - 1).toLocaleDateString([], { day: 'numeric', month: 'short' });
+
+    $('#vd-name').textContent = vendor.name;
+    $('#vd-sub').textContent = vendor.active ? span : span + ' · inactive';
+    $('#vd-boxes').textContent = bd.totals.boxes;
+    $('#vd-boxes-meta').textContent = bd.totals.count + (bd.totals.count === 1 ? ' sale' : ' sales');
+    $('#vd-total').textContent = money(bd.totals.revenue, 0);
+    $('#vd-total-meta').textContent = money(bd.totals.profit, 0) + ' profit';
+
+    $('#vd-lines').innerHTML = bd.lines.length ? bd.lines.map(function (l) {
+      return '<li class="soldrow">' +
+        '<div class="soldrow__body">' +
+          '<p class="soldrow__name">' + escapeHtml(l.medicine) + '</p>' +
+          '<p class="soldrow__meta">' + l.boxes + ' × ' + money(l.unitPrice) + '</p>' +
+        '</div>' +
+        '<span class="soldrow__total">' + money(l.total) + '</span>' +
+        '</li>';
+    }).join('') : '<li class="soldrow soldrow--empty"><p class="soldrow__meta">Nothing sold in this period.</p></li>';
+
+    $('#vd-total-meta2').textContent = bd.lines.length +
+      (bd.lines.length === 1 ? ' medicine · ' : ' medicines · ') + bd.totals.boxes + ' boxes';
+    $('#vd-grand').textContent = money(bd.totals.revenue);
+
+    $('#vd-sales').innerHTML = bd.sales.length ? bd.sales.map(function (sale) {
+      return '<li class="activity__row">' +
+        '<span class="activity__icon"><svg class="icon"><use href="#i-barcode"/></svg></span>' +
+        '<span class="activity__body">' +
+          '<span class="activity__name">' + escapeHtml(sale.medicine) + '</span>' +
+          '<span class="activity__meta">' + sale.boxes + ' × ' + money(sale.unitPrice) +
+            ' · ' + ago(sale.at) + '</span>' +
+        '</span>' +
+        '<span class="badge badge--blue">' + money(sale.unitPrice * sale.boxes) + '</span>' +
+        '</li>';
+    }).join('') : '<li class="activity__row"><span class="activity__meta">No sales in this period.</span></li>';
+  }
+
+  function moveVdPill() { movePill('#screen-vdetail', '#vdpill'); }
+
+  $$('[data-vdperiod]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      $$('[data-vdperiod]').forEach(function (o) {
+        o.classList.toggle('is-on', o === b);
+        o.setAttribute('aria-selected', String(o === b));
+      });
+      vdPeriod = b.dataset.vdperiod;
+      moveVdPill();
+      renderVendorDetail();
+    });
+  });
+
+  $('#vd-edit').addEventListener('click', function () {
+    if (detailVendor) openVendorSheet(detailVendor);
   });
 
   /* ================================================================== *
