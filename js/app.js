@@ -157,6 +157,7 @@
     if (itemSheet.classList.contains('is-open')) { closeItemSheet(); return; }
     if (vendorSheet.classList.contains('is-open')) { closeVendorSheet(); return; }
     if (priceSheet.classList.contains('is-open')) { closePriceSheet(); return; }
+    if (accountSheet.classList.contains('is-open')) { closeAccountSheet(); return; }
     if (scanSheet.classList.contains('is-open')) { resumeScanning(); return; }
     if (sellSheet.classList.contains('is-open')) { resumeSelling(); return; }
 
@@ -1118,6 +1119,7 @@
     if (itemSheet.classList.contains('is-open')) closeItemSheet();
     if (vendorSheet.classList.contains('is-open')) closeVendorSheet();
     if (priceSheet.classList.contains('is-open')) closePriceSheet();
+    if (accountSheet.classList.contains('is-open')) closeAccountSheet();
   });
 
   stockForm.addEventListener('input', function (event) {
@@ -1317,6 +1319,7 @@
     document.documentElement.classList.toggle('role-vendor', isVendor);
     $('#tabs-manager').hidden = !isMgr;
     $('#tabs-vendor').hidden = !isVendor;
+    paintAccountButtons();
   }
 
   var pinFor = null;     // account awaiting a PIN
@@ -1398,14 +1401,75 @@
     $('#pinpad').hidden = true;
   });
 
+  function initialsOf(name) {
+    return String(name || '').split(/\s+/).map(function (w) { return w[0]; })
+      .join('').slice(0, 2).toUpperCase();
+  }
+
+  /* One account sheet serves both roles, so signing out is in the same place
+     whoever is using the phone. */
+  var accountSheet = $('#account-sheet');
+
+  function paintAccountButtons() {
+    var account = Store.currentAccount();
+    var initials = account ? initialsOf(account.name) : '—';
+    $('#account-initials').textContent = initials;
+    $('#vaccount-initials').textContent = initials;
+  }
+
+  function openAccountSheet() {
+    var account = Store.currentAccount();
+    if (!account) return;
+    hideToast();
+
+    $('#acct-avatar').textContent = initialsOf(account.name);
+    $('#acct-avatar').className = 'acctrow__avatar' +
+      (account.role === Store.MANAGER ? ' acctrow__avatar--mgr' : '');
+    $('#acct-name').textContent = account.name;
+    $('#acct-role').textContent = account.role === Store.MANAGER
+      ? 'Pharmacy manager' : 'Vendor';
+
+    var rows = [['Signed in', 'on this device']];
+    if (account.role === Store.VENDOR) {
+      var st = Store.vendorStats(account.id, 'daily');
+      rows.push(['Sold today', st.boxes + (st.boxes === 1 ? ' box' : ' boxes')]);
+      rows.push(['Profit today', money(st.profit)]);
+    } else {
+      rows.push(['Vendors', String(Store.vendors().length)]);
+      rows.push(['Low stock', String(Store.lowStockCount())]);
+    }
+    $('#acct-meta').innerHTML = rows.map(function (r) {
+      return '<div class="kv__row"><dt>' + escapeHtml(r[0]) + '</dt><dd>' + escapeHtml(r[1]) + '</dd></div>';
+    }).join('');
+
+    scrim.hidden = false;
+    requestAnimationFrame(function () { scrim.classList.add('is-on'); });
+    accountSheet.classList.add('is-open');
+    accountSheet.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeAccountSheet() {
+    scrim.classList.remove('is-on');
+    accountSheet.classList.remove('is-open');
+    accountSheet.setAttribute('aria-hidden', 'true');
+    setTimeout(function () { if (!anySheetOpen()) scrim.hidden = true; }, 300);
+  }
+
   function signOut() {
+    closeAccountSheet();
+    closeCamera();
+    closeSellCamera();
     Store.signOut();
     applyRole();
     renderSignIn();
     go('signin');
+    toast('Signed out');
   }
 
-  $('#vhome-signout').addEventListener('click', signOut);
+  $('#account-btn').addEventListener('click', openAccountSheet);
+  $('#vaccount-btn').addEventListener('click', openAccountSheet);
+  $('#acct-close').addEventListener('click', closeAccountSheet);
+  $('#acct-signout').addEventListener('click', signOut);
 
   /* ================================================================== *
    * 7. Vendor accounts (manager)
@@ -1909,7 +1973,7 @@
   });
 
   function anySheetOpen() {
-    return [stockSheet, itemSheet, vendorSheet, priceSheet].some(function (el) {
+    return [stockSheet, itemSheet, vendorSheet, priceSheet, accountSheet].some(function (el) {
       return el.classList.contains('is-open');
     });
   }

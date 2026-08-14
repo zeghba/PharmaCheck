@@ -1856,3 +1856,31 @@ html.role-vendor .pricerow { display: none; }
 #tabs-manager { grid-template-columns: repeat(5, 1fr); }
 #tabs-manager .tab span { font-size: 9.5px; }
 #tabs-vendor { grid-template-columns: repeat(3, 1fr); }
+
+/* ========================== ACCOUNT / SIGN OUT ========================== */
+.avatar--btn {
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform .12s ease;
+}
+.avatar--btn:active { transform: scale(.92); }
+.avatar--vendor { background: linear-gradient(150deg, #2FC5B8, var(--teal)); box-shadow: 0 4px 12px rgba(15,163,163,.32); }
+
+.accountcard {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 2px 0 16px;
+}
+.accountcard__body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.accountcard__name { font-size: 17px; font-weight: 720; letter-spacing: -.3px; }
+.accountcard__role { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+
+/* The vendor-removal button is a quiet tint; sign out reads as an action. */
+.btn--danger.btn--solid {
+  background: var(--red);
+  color: #fff;
+  margin-top: 0;
+  box-shadow: 0 6px 18px rgba(224, 59, 69, .3);
+}
