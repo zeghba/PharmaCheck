@@ -17,8 +17,27 @@ import UpdateBanner from './src/UpdateBanner';
  * screen, and Android hardware-back routing.
  */
 
-// Runs before any document script, so index.html can drop the mock chrome
-// before first paint.
+/*
+ * The native flag is baked into the markup rather than injected.
+ *
+ * react-native-webview's injectedJavaScriptBeforeContentLoaded fires at
+ * onPageStarted on Android, which is *not* guaranteed to precede the
+ * document's own <head> scripts — so a page that reads the flag on parse can
+ * miss it and render the simulated status bar over the real one. Writing it
+ * into <head> makes the ordering a property of the document itself.
+ *
+ * A replacer function is required: the bundle is full of `$` sequences that
+ * String.replace would otherwise expand as match patterns.
+ */
+const FLAG_TAG = '<head>\n<script>window.__PHARMACHECK_NATIVE__ = true;</script>';
+const NATIVE_HTML = webBundle.replace('<head>', () => FLAG_TAG);
+
+if (!NATIVE_HTML.includes('__PHARMACHECK_NATIVE__ = true')) {
+  throw new Error('native flag was not injected into the web bundle');
+}
+
+// Kept as a belt-and-braces fallback for any load path that reaches the page
+// before the inline tag runs.
 const BEFORE_LOAD = 'window.__PHARMACHECK_NATIVE__ = true; true;';
 
 const LIGHT_BG = '#EEF4FB';
@@ -85,7 +104,7 @@ function Shell() {
         ref={webRef}
         style={[styles.web, { backgroundColor: background }]}
         originWhitelist={['*']}
-        source={{ html: webBundle, baseUrl: 'https://pharmacheck.local' }}
+        source={{ html: NATIVE_HTML, baseUrl: 'https://pharmacheck.local' }}
         injectedJavaScriptBeforeContentLoaded={BEFORE_LOAD}
         onMessage={onMessage}
         // The UI is a fixed-size app shell, not a scrollable document.

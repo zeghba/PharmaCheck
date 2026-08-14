@@ -20,7 +20,7 @@
     ],
     "android": {
       "package": "com.pharmacheck.app",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1A73E8"

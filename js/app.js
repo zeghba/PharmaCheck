@@ -20,7 +20,12 @@
    * side tint the real status bar per screen and route the Android back
    * button back into this app instead of closing it.
    * ------------------------------------------------------------------ */
-  var isNative = Boolean(window.__PHARMACHECK_NATIVE__ && window.ReactNativeWebView);
+  var isNative = Boolean(window.__PHARMACHECK_NATIVE__ || window.ReactNativeWebView);
+
+  /* index.html sets this on parse. If the flag only arrived afterwards — an
+     injection that lost the race with the document — apply it here too, so the
+     simulated status bar can never end up stacked under the real one. */
+  if (isNative) document.documentElement.classList.add('is-native');
 
   function postToNative(message) {
     if (!isNative) return;
