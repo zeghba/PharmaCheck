@@ -588,18 +588,9 @@
       return '<option value="' + escapeHtml(o.id) + '">' + escapeHtml(o.label) + '</option>';
     }).join('');
   }
-  function fillDatalist(el, values) {
-    el.innerHTML = values.map(function (v) {
-      return '<option value="' + escapeHtml(v) + '"></option>';
-    }).join('');
-  }
-
   fillSelect($('#ln-form'), V.FORMS);
   fillSelect($('#ln-packaging'), V.PACKAGINGS);
   fillSelect($('#ln-route'), V.ROUTES);
-  fillDatalist($('#dose-suggestions'), V.DOSES);
-  fillDatalist($('#freq-suggestions'), V.FREQUENCIES);
-  fillDatalist($('#dur-suggestions'), V.DURATIONS);
 
   function setFieldError(name, message, scope) {
     var root = scope || form;
@@ -877,43 +868,75 @@
    * ================================================================== */
   var listEl = $('#stock-list');
   var filter = 'all';
+  var sortBy = 'name-asc';
+
+  function expiryTime(item) {
+    var parts = String(item.expiry || '').split('/');
+    if (parts.length !== 2) return Infinity;
+    return new Date(Number(parts[1]), Number(parts[0]) - 1, 1).getTime();
+  }
 
   function isExpiring(item) {
-    var parts = item.expiry.split('/');
-    var when = new Date(Number(parts[1]), Number(parts[0]) - 1, 1);
-    var months = (when.getFullYear() - new Date().getFullYear()) * 12 +
-                 (when.getMonth() - new Date().getMonth());
+    var when = expiryTime(item);
+    if (!isFinite(when)) return false;
+    var months = (new Date(when).getFullYear() - new Date().getFullYear()) * 12 +
+                 (new Date(when).getMonth() - new Date().getMonth());
     return months <= 12;
   }
+
+  var SORTS = {
+    'name-asc':   function (a, b) { return a.name.localeCompare(b.name); },
+    'name-desc':  function (a, b) { return b.name.localeCompare(a.name); },
+    'qty-asc':    function (a, b) { return a.qty - b.qty || a.name.localeCompare(b.name); },
+    'qty-desc':   function (a, b) { return b.qty - a.qty || a.name.localeCompare(b.name); },
+    'expiry-asc': function (a, b) { return expiryTime(a) - expiryTime(b) || a.name.localeCompare(b.name); },
+    'expiry-desc':function (a, b) { return expiryTime(b) - expiryTime(a) || a.name.localeCompare(b.name); },
+    // How far below the reorder level each item sits — the restocking order.
+    'short-desc': function (a, b) {
+      return (b.reorder - b.qty) - (a.reorder - a.qty) || a.name.localeCompare(b.name);
+    },
+    'value-desc': function (a, b) { return (b.qty * b.cost) - (a.qty * a.cost); }
+  };
 
   function renderStock() {
     var query = $('#inv-search').value.trim().toLowerCase();
     var all = Store.medicines();
 
     var rows = all.filter(function (item) {
-      if (query && item.name.toLowerCase().indexOf(query) === -1) return false;
+      if (query && item.name.toLowerCase().indexOf(query) === -1 &&
+          String(item.barcode || '').indexOf(query) === -1) return false;
       if (filter === 'low') return Store.isLow(item);
       if (filter === 'expiring') return isExpiring(item);
       return true;
-    });
+    }).sort(SORTS[sortBy] || SORTS['name-asc']);
 
     listEl.innerHTML = rows.map(function (item) {
       var low = Store.isLow(item);
       return '' +
-        '<li class="stockrow ' + (low ? 'stockrow--low' : 'stockrow--ok') + '">' +
-          '<span class="stockrow__dot" aria-hidden="true"></span>' +
-          '<div class="stockrow__body">' +
-            '<p class="stockrow__name">' + escapeHtml(item.name) + '</p>' +
-            '<p class="stockrow__meta">' +
-              '<span>' + escapeHtml(item.form) + ' · ' + escapeHtml(item.batch) + '</span>' +
-              '<span>Exp ' + escapeHtml(item.expiry) + '</span>' +
-              (low ? '<span class="stockrow__warn">' +
-                     '<svg class="icon icon--xs"><use href="#i-alert"/></svg>Low Stock</span>' : '') +
-            '</p>' +
+        '<li class="stockrow ' + (low ? 'stockrow--low' : 'stockrow--ok') + '" data-name="' + escapeHtml(item.name) + '">' +
+          '<div class="stockrow__top">' +
+            '<span class="stockrow__dot" aria-hidden="true"></span>' +
+            '<div class="stockrow__body">' +
+              '<p class="stockrow__name">' + escapeHtml(item.name) +
+                (item.strength ? ' <span class="stockrow__strength">' + escapeHtml(item.strength) + '</span>' : '') +
+              '</p>' +
+              '<p class="stockrow__meta">' +
+                '<span>' + escapeHtml(V.formLabel(item.form)) + ' · ' + escapeHtml(item.batch) + '</span>' +
+                '<span>Exp ' + escapeHtml(item.expiry) + '</span>' +
+                (low ? '<span class="stockrow__warn">' +
+                       '<svg class="icon icon--xs"><use href="#i-alert"/></svg>Low Stock</span>' : '') +
+              '</p>' +
+            '</div>' +
           '</div>' +
-          '<div class="stockrow__right">' +
-            '<p class="stockrow__qty">' + item.qty + '</p>' +
-            '<p class="stockrow__unit">' + (low ? 'reorder ' + item.reorder : 'in stock') + '</p>' +
+          '<div class="stepper">' +
+            '<button class="stepper__btn" type="button" data-step="-1" aria-label="Take one unit of ' + escapeHtml(item.name) + '">' +
+              '<svg class="icon icon--xs"><use href="#i-minus"/></svg></button>' +
+            '<button class="stepper__value" type="button" data-adjust aria-label="Adjust stock for ' + escapeHtml(item.name) + '">' +
+              '<span class="stepper__qty">' + item.qty + '</span>' +
+              '<span class="stepper__unit">' + (low ? 'reorder ' + item.reorder : 'in stock') + '</span>' +
+            '</button>' +
+            '<button class="stepper__btn" type="button" data-step="1" aria-label="Add one unit of ' + escapeHtml(item.name) + '">' +
+              '<svg class="icon icon--xs"><use href="#i-plus"/></svg></button>' +
           '</div>' +
         '</li>';
     }).join('');
@@ -921,10 +944,13 @@
     $('#stock-empty').hidden = rows.length > 0;
     $('#inv-summary').textContent =
       all.length + ' medicines · ' + Store.lowStockCount() + ' below reorder level';
-    refreshSuggestions();
   }
 
   $('#inv-search').addEventListener('input', renderStock);
+  $('#inv-sort').addEventListener('change', function () {
+    sortBy = this.value;
+    renderStock();
+  });
 
   $$('.chip').forEach(function (chip) {
     chip.addEventListener('click', function () {
@@ -937,31 +963,122 @@
     });
   });
 
+  /* ---- stock steppers -------------------------------------------------
+     A tap moves one unit; holding repeats, accelerating, so a delivery of
+     120 does not mean 120 taps. Only the touched row is re-rendered while
+     the hold runs, otherwise the button would be ripped out from under the
+     finger on every repeat. */
+  var holdTimer = null;
+  var holdCount = 0;
+
+  function adjust(name, delta) {
+    var med = Store.findMedicine(name);
+    if (!med) return null;
+    var next = Math.max(0, med.qty + delta);
+    if (next === med.qty) return med;
+    med.qty = next;
+    Store.save();
+    return med;
+  }
+
+  function paintRow(row, med) {
+    var low = Store.isLow(med);
+    row.classList.toggle('stockrow--low', low);
+    row.classList.toggle('stockrow--ok', !low);
+    $('.stepper__qty', row).textContent = med.qty;
+    $('.stepper__unit', row).textContent = low ? 'reorder ' + med.reorder : 'in stock';
+    var warn = $('.stockrow__warn', row);
+    if (low && !warn) {
+      $('.stockrow__meta', row).insertAdjacentHTML('beforeend',
+        '<span class="stockrow__warn"><svg class="icon icon--xs"><use href="#i-alert"/></svg>Low Stock</span>');
+    } else if (!low && warn) {
+      warn.remove();
+    }
+  }
+
+  function stopHold() {
+    clearTimeout(holdTimer);
+    holdTimer = null;
+    if (holdCount) {
+      // Re-sort and refresh totals once the finger lifts.
+      renderStock();
+      renderDashboard();
+      holdCount = 0;
+    }
+  }
+
+  listEl.addEventListener('pointerdown', function (event) {
+    var btn = event.target.closest('[data-step]');
+    if (!btn) return;
+    var row = btn.closest('.stockrow');
+    var name = row.dataset.name;
+    var delta = Number(btn.dataset.step);
+    var elapsed = 0;
+
+    function step() {
+      holdCount++;
+      // Accelerate: single units at first, then 5s, then 10s.
+      var size = holdCount > 20 ? 10 : holdCount > 8 ? 5 : 1;
+      var med = adjust(name, delta * size);
+      if (!med) return;
+      paintRow(row, med);
+      toast((delta > 0 ? 'Added ' : 'Taken ') + size + ' · ' + med.name + ' now ' + units(med.qty));
+      if (navigator.vibrate) navigator.vibrate(8);
+
+      elapsed = elapsed ? Math.max(70, elapsed * 0.82) : 420;
+      holdTimer = setTimeout(step, elapsed);
+    }
+
+    step();
+    event.preventDefault();
+  });
+
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (evt) {
+    listEl.addEventListener(evt, stopHold);
+  });
+  window.addEventListener('blur', stopHold);
+
+  /* Tapping the number opens the sheet for a precise amount. */
+  listEl.addEventListener('click', function (event) {
+    var pad = event.target.closest('[data-adjust]');
+    if (!pad) return;
+    var name = pad.closest('.stockrow').dataset.name;
+    openStockSheet(name);
+  });
+
+  /* ---- add / adjust stock sheet ---- */
   var stockSheet = $('#stock-sheet');
   var scrim = $('#scrim');
   var stockForm = $('#stock-form');
 
-  function openStockSheet() {
+  function openStockSheet(prefillName) {
     hideToast();
+    stockForm.reset();
+    $$('.field', stockForm).forEach(function (f) { f.classList.remove('is-bad'); });
+    if (prefillName) stockForm.elements.name.value = prefillName;
+
     scrim.hidden = false;
     requestAnimationFrame(function () { scrim.classList.add('is-on'); });
     stockSheet.classList.add('is-open');
     stockSheet.setAttribute('aria-hidden', 'false');
-    setTimeout(function () { $('#s-name').focus(); }, 260);
+    setTimeout(function () { $('#s-qty').focus(); }, 260);
   }
 
   function closeStockSheet() {
     scrim.classList.remove('is-on');
     stockSheet.classList.remove('is-open');
     stockSheet.setAttribute('aria-hidden', 'true');
-    setTimeout(function () { scrim.hidden = true; }, 300);
+    setTimeout(function () { if (!itemSheet.classList.contains('is-open')) scrim.hidden = true; }, 300);
     stockForm.reset();
     $$('.field', stockForm).forEach(function (f) { f.classList.remove('is-bad'); });
   }
 
-  $('#fab-add').addEventListener('click', openStockSheet);
+  $('#fab-add').addEventListener('click', function () { openStockSheet(); });
   $('#stock-cancel').addEventListener('click', closeStockSheet);
-  scrim.addEventListener('click', closeStockSheet);
+  scrim.addEventListener('click', function () {
+    if (stockSheet.classList.contains('is-open')) closeStockSheet();
+    if (itemSheet.classList.contains('is-open')) closeItemSheet();
+  });
 
   stockForm.addEventListener('input', function (event) {
     var field = event.target.closest('.field');
@@ -975,14 +1092,22 @@
     var ok = true;
 
     if (!name) { markBad(stockForm.elements.name, 'Medicine name is required'); ok = false; }
-    if (!qty || qty < 1) { markBad(stockForm.elements.qty, 'Enter 1 unit or more'); ok = false; }
+    if (!qty || qty === 0) { markBad(stockForm.elements.qty, 'Enter an amount'); ok = false; }
     if (!ok) return;
 
-    var item = Store.addStock(name, qty);
+    var item;
+    if (qty < 0) {
+      item = adjust(name, qty);
+      if (!item) { markBad(stockForm.elements.name, 'Not in the catalogue'); return; }
+      toast('Taken ' + Math.abs(qty) + ' · ' + item.name + ' now ' + units(item.qty));
+    } else {
+      item = Store.addStock(name, qty);
+      toast('Added ' + qty + ' · ' + item.name + ' now ' + units(item.qty));
+    }
+
     closeStockSheet();
     renderStock();
     renderDashboard();
-    toast(qty + ' units added — ' + item.name + ' now at ' + item.qty);
   });
 
   function markBad(input, message) {
@@ -992,10 +1117,48 @@
     if (slot) slot.textContent = message;
   }
 
-  function refreshSuggestions() {
-    $('#med-suggestions').innerHTML = Store.medicines().map(function (item) {
-      return '<option value="' + escapeHtml(item.name) + '"></option>';
-    }).join('');
+  /* ---- type-ahead ---------------------------------------------------
+     Replaces <datalist>, which Android draws as an opaque OS list that
+     ignores the app's styling entirely. */
+  var AC = window.PharmaAutocomplete;
+
+  function medicineSource(query) {
+    return AC.rank(Store.medicines(), query, function (m) { return m.name; })
+      .slice(0, 40)
+      .map(function (m) {
+        return {
+          value: m.name,
+          label: m.name,
+          meta: [m.strength, V.formLabel(m.form), V.packagingLabel(m.packaging)]
+            .filter(Boolean).join(' · '),
+          tag: units(m.qty),
+          tagWarn: Store.isLow(m),
+          medicine: m
+        };
+      });
+  }
+
+  function plainSource(values) {
+    return function (query) {
+      return AC.rank(values, query, function (v) { return v; })
+        .slice(0, 20)
+        .map(function (v) { return { value: v, label: v }; });
+    };
+  }
+
+  function setUpTypeAhead() {
+    AC.attach($('#ln-name'), {
+      source: medicineSource,
+      emptyText: 'Not in the catalogue — it will be added as a new medicine',
+      onPick: function (hit) { applyCatalogue(hit.value); reflectStock(); }
+    });
+    AC.attach($('#s-name'), {
+      source: medicineSource,
+      emptyText: 'Not in the catalogue — adding stock will create it'
+    });
+    AC.attach($('#ln-dose'), { source: plainSource(V.DOSES) });
+    AC.attach($('#ln-frequency'), { source: plainSource(V.FREQUENCIES) });
+    AC.attach($('#ln-duration'), { source: plainSource(V.DURATIONS) });
   }
 
   /* ================================================================== *
@@ -1113,7 +1276,7 @@
   if (!isNative) window.__pharmacheckBuild({ version: '1.0.0', channel: 'web', embedded: true });
 
   Store.load();
-  refreshSuggestions();
+  setUpTypeAhead();
   renderStock();
   renderDashboard();
   renderReports(activePeriod);
