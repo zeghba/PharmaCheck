@@ -21,8 +21,9 @@ On a desktop browser the app renders inside a phone frame. Below 460px wide (or
 on a short viewport) the frame drops away and the app fills the screen, so it
 also works opened directly on a phone.
 
-The camera on the scanner screen needs `https://` or `localhost` — over
-`file://` the browser blocks it and the simulated feed is used instead.
+The camera on the scanner screen needs `https://` or `localhost`. Over
+`file://` the browser blocks it and the scanner shows a camera-unavailable
+state pointing at manual entry.
 
 ## The five screens
 
@@ -33,10 +34,10 @@ reachable from the dashboard tile or the scanner's back button.
 1. **Dashboard** — greeting, three square action tiles (Scan Prescription,
    Inventory, Manual Entry), a Today's Summary block of metric cards, and recent
    activity.
-2. **Prescription Scanner** — camera feed behind a glowing green viewfinder with
-   an animated scan beam, a flash toggle, and a shutter button. A successful
-   scan puts a green checkmark over the QR code and slides up the parsed
-   prescription.
+2. **Prescription Scanner** — live camera behind a glowing green viewfinder with
+   an animated scan beam, a torch toggle, and a shutter. Codes are decoded
+   continuously; a hit locks the frame with a green checkmark and slides up
+   what the code actually contains, ready to dispense.
 3. **Manual Entry & Code Generator** — patient, medication, dosage and quantity
    fields, then a generated QR code with a Print / Share action.
 4. **Inventory** — searchable medicine stock with green/red stock-health dots,
@@ -50,25 +51,36 @@ reachable from the dashboard tile or the scanner's back button.
 
 Real:
 
+- **Scanning.** `js/scanner.js` decodes live camera frames — the platform
+  `BarcodeDetector` where available (the Android WebView, Chrome), falling back
+  to a vendored jsQR build everywhere else. Decoding runs continuously; the
+  shutter forces a single attempt. A decoded code is resolved against the
+  records, so the result sheet reports what the code actually contains,
+  including when it is already dispensed, unknown to this pharmacy, or not a
+  PharmaCheck code at all.
 - **The QR codes.** `js/qr.js` is a QR Code Model 2 encoder written from
   ISO/IEC 18004 — byte mode, error correction level M, versions 1 to 10, with
   Reed-Solomon ECC, block interleaving, all eight mask patterns and penalty
-  scoring. Codes generated on the Manual Entry screen and the one printed on the
-  simulated prescription both encode their actual payload and scan with any
-  reader.
-- **The camera.** The scanner requests the rear camera through `getUserMedia`
-  and drives the torch when the device exposes one.
-- **Inventory state.** Search, filters, adding stock and filling a scanned
-  prescription all mutate the same list, and the dashboard's low-stock count
-  follows it.
+  scoring. Codes it generates scan with any reader, and with this app.
+- **The data.** `js/store.js` holds medicines (with price and cost) and
+  prescriptions (with status and timestamps), persisted to `localStorage`.
+  Every number on the dashboard and the reports screen — counts, revenue,
+  COGS, profit, trend bars, margins — is computed from those records. Nothing
+  on screen is a literal.
+- **Stock movement.** Dispensing is the only path that moves stock, and it
+  refuses rather than going negative.
 
-Mocked:
+Seeded, not mocked:
 
-- **Recognising a code from the camera.** Pressing the shutter always resolves
-  to the same demo prescription; there is no decoder reading frames.
-- **Dashboard and report figures**, which are fixed sample data.
-- **Persistence.** Everything lives in memory and resets on reload (only the
-  prescription code counter is kept, in `localStorage`).
+- Four months of trading history is generated deterministically on first run,
+  so the reports screen has something to aggregate before you have used the
+  app. Those records carry `source: "seed"`, which distinguishes them from
+  prescriptions actually handled here. `PharmaStore.reset()` regenerates them.
+
+Still fixed:
+
+- The pharmacist identity in the header ("Welcome, Sarah") and the pharmacy
+  name. There is no account system.
 
 ## Verifying the QR encoder
 
@@ -87,8 +99,9 @@ The same UI ships as an Android app. An Expo shell renders the web app in a
 WebView, so the APK and the browser run byte-identical HTML, CSS and
 JavaScript — there is no second implementation to keep in sync.
 
-`scripts/bundle-web.js` inlines `index.html`, `css/styles.css`, `js/qr.js` and
-`js/app.js` into one self-contained HTML string at `src/webBundle.generated.js`,
+`scripts/bundle-web.js` inlines `index.html` and every local stylesheet and
+script it references into one self-contained HTML string at
+`src/webBundle.generated.js`,
 which the WebView renders via `source={{ html }}`. Because the whole UI lives
 inside the JS bundle, **every part of the interface is updatable over the air** —
 a CSS tweak or a new screen ships without a new APK.
@@ -112,16 +125,18 @@ status bar and home indicator so the device's own chrome shows instead.
 
 ### Building it
 
-Requires an Expo account. Nothing below has been run against an account yet —
-`eas init` is what generates the real project ID and update URL.
+The project is linked to `@xp49/pharmacheck`, with `updates.url` and the
+`preview` channel already configured in `app.json`. To build on EAS:
 
 ```bash
 npm install                 # also regenerates src/webBundle.generated.js
-npx eas login
-npx eas init                # adds extra.eas.projectId to app.json
-npx eas update:configure    # adds updates.url to app.json
+export EXPO_TOKEN=...       # or: npx eas login
 npx eas build --profile preview --platform android
 ```
+
+An EAS build is signed with an EAS-managed keystore. That differs from the
+local debug keystore below, so an EAS build will not install over a locally
+built one — uninstall first when switching between them.
 
 The `preview` profile in `eas.json` sets `buildType: "apk"` with internal
 distribution, so it produces an installable APK rather than a Play Store bundle.
@@ -138,14 +153,13 @@ cd android && ./gradlew assembleRelease
 # → android/app/build/outputs/apk/release/app-release.apk
 ```
 
-Two caveats for a locally built APK:
+One caveat for a locally built APK: it is signed with the React Native
+template's **debug keystore**, which is fine for sideloading and testing but
+not for distribution. A Play Store release needs a real keystore, or
+EAS-managed signing.
 
-- It is signed with the React Native template's **debug keystore**, which is
-  fine for sideloading and testing but not for distribution. A Play Store
-  release needs a real keystore, or EAS-managed signing.
-- OTA is **inert** until `updates.url` exists in `app.json`. `Updates.isEnabled`
-  reports false, the update hook no-ops, and the app runs entirely from the
-  bundle baked into the APK.
+OTA works from a local build, because both the update URL and the channel are
+pinned in `app.json` rather than injected by EAS Build.
 
 `android/` and `ios/` are generated by `expo prebuild` and are gitignored —
 `app.json` is the source of truth, so regenerate them rather than editing them
@@ -155,10 +169,16 @@ by hand.
 
 ```bash
 npm run bundle:web
-npx eas update --branch preview --message "Adjust inventory thresholds"
+npx eas update --branch preview --environment preview --message "..."
 ```
 
 Installed builds pick it up on their next launch or foreground.
+
+The channel is pinned in `app.json` via
+`updates.requestHeaders["expo-channel-name"]`. EAS Build injects the channel
+from the `eas.json` profile, but a Gradle build run outside EAS does not get
+it — and without a channel the app sends no branch to match, so updates never
+arrive. Pinning it in app config makes this work regardless of who builds.
 
 **The one rule:** `runtimeVersion` uses the `appVersion` policy, so an update
 only reaches builds with a matching `version` in `app.json`. Changing JS, CSS or
