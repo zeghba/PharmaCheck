@@ -64,6 +64,44 @@
 
     <main class="viewport" id="viewport">
 
+      <!-- ===================== 0. SIGN IN ===================== -->
+      <section class="screen screen--scroll" id="screen-signin" aria-label="Sign in">
+        <div class="signin">
+          <div class="signin__brand">
+            <svg viewBox="0 0 100 100" class="signin__mark" aria-hidden="true">
+              <path d="M26 18h27a17.5 17.5 0 0 1 0 35H40v29H26z" fill="currentColor"/>
+              <g stroke="currentColor" stroke-width="10" stroke-linecap="round">
+                <line x1="52" y1="55" x2="80" y2="85"/><line x1="52" y1="85" x2="80" y2="55"/>
+              </g>
+            </svg>
+            <h1 class="signin__title">PharmaCheck</h1>
+            <p class="signin__sub">Choose your account to continue</p>
+          </div>
+
+          <ul class="acctlist" id="signin-accounts"></ul>
+
+          <div class="pinpad" id="pinpad" hidden>
+            <p class="pinpad__who" id="pin-who">—</p>
+            <div class="pinpad__dots" id="pin-dots" aria-hidden="true"></div>
+            <p class="pinpad__error" id="pin-error"></p>
+            <div class="pinpad__keys">
+              <button class="pinkey" type="button" data-key="1">1</button>
+              <button class="pinkey" type="button" data-key="2">2</button>
+              <button class="pinkey" type="button" data-key="3">3</button>
+              <button class="pinkey" type="button" data-key="4">4</button>
+              <button class="pinkey" type="button" data-key="5">5</button>
+              <button class="pinkey" type="button" data-key="6">6</button>
+              <button class="pinkey" type="button" data-key="7">7</button>
+              <button class="pinkey" type="button" data-key="8">8</button>
+              <button class="pinkey" type="button" data-key="9">9</button>
+              <button class="pinkey pinkey--soft" type="button" id="pin-back">Back</button>
+              <button class="pinkey" type="button" data-key="0">0</button>
+              <button class="pinkey pinkey--soft" type="button" data-key="del">⌫</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- ===================== 1. DASHBOARD ===================== -->
       <section class="screen screen--scroll is-active" id="screen-dashboard" aria-label="Dashboard">
         <header class="apphead">
@@ -389,10 +427,193 @@
         <ul class="card ranklist" id="rank-list"></ul>
       </section>
 
+      <!-- ===================== 9. VENDOR SELL ===================== -->
+      <section class="screen screen--camera" id="screen-vsell" aria-label="Scan to sell">
+        <div class="camera" id="sell-camera">
+          <video class="camera__feed" id="sell-feed" playsinline muted autoplay></video>
+
+          <div class="camstate" id="sell-state">
+            <div class="camstate__inner">
+              <svg class="icon camstate__icon"><use href="#i-barcode"/></svg>
+              <p class="camstate__title" id="sell-state-title">Starting camera…</p>
+              <p class="camstate__body" id="sell-state-body">Allow camera access to scan medicine boxes.</p>
+              <div class="camstate__actions" id="sell-state-actions" hidden>
+                <button class="btn btn--soft" type="button" id="sell-retry">Try again</button>
+                <button class="btn btn--soft" type="button" data-go="vhome">Back</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="camera__vignette"></div>
+
+          <div class="camtop">
+            <button class="iconbtn iconbtn--glass" type="button" data-go="vhome" aria-label="Close">
+              <svg class="icon"><use href="#i-close"/></svg>
+            </button>
+            <div class="camtop__title"><span>Scan to Sell</span><small id="sell-source">Barcode</small></div>
+            <button class="iconbtn iconbtn--glass" type="button" id="sell-flash" aria-pressed="false" aria-label="Toggle torch">
+              <svg class="icon" id="sell-flash-icon"><use href="#i-flash-off"/></svg>
+            </button>
+          </div>
+
+          <div class="finder finder--wide" id="sell-finder">
+            <span class="finder__corner finder__corner--tl"></span>
+            <span class="finder__corner finder__corner--tr"></span>
+            <span class="finder__corner finder__corner--bl"></span>
+            <span class="finder__corner finder__corner--br"></span>
+            <span class="finder__beam"></span>
+            <div class="finder__success"><span class="finder__check"><svg class="icon"><use href="#i-check"/></svg></span></div>
+          </div>
+
+          <p class="camera__hint" id="sell-hint">Align the box barcode within the frame</p>
+
+          <div class="camctl">
+            <div class="sellrun" id="sell-run">
+              <span class="sellrun__label">This session</span>
+              <span class="sellrun__value"><b id="sell-run-boxes">0</b> boxes · <b id="sell-run-profit">$0.00</b> profit</span>
+            </div>
+          </div>
+
+          <div class="sheet" id="sell-sheet" aria-hidden="true">
+            <div class="sheet__grab"></div>
+            <div class="sheet__head">
+              <span class="sheet__badge" id="sell-badge"><svg class="icon icon--xs"><use href="#i-check"/></svg> <span id="sell-badge-text">Medicine identified</span></span>
+              <span class="sheet__code" id="sell-code">—</span>
+            </div>
+            <dl class="kv" id="sell-details"></dl>
+            <p class="sheet__note" id="sell-note" hidden></p>
+            <div class="stepper stepper--sheet" id="sell-qty-wrap">
+              <button class="stepper__btn" type="button" id="sell-minus" aria-label="Fewer boxes"><svg class="icon icon--xs"><use href="#i-minus"/></svg></button>
+              <div class="stepper__value" aria-live="polite">
+                <span class="stepper__qty" id="sell-boxes">1</span>
+                <span class="stepper__unit">boxes to sell</span>
+              </div>
+              <button class="stepper__btn" type="button" id="sell-plus" aria-label="More boxes"><svg class="icon icon--xs"><use href="#i-plus"/></svg></button>
+            </div>
+            <div class="sheet__actions">
+              <button class="btn btn--ghost" type="button" id="sell-cancel">Rescan</button>
+              <button class="btn btn--primary" type="button" id="sell-confirm">Record sale</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== 6. VENDORS (manager) ===================== -->
+      <section class="screen screen--fixed" id="screen-vendors" aria-label="Vendor accounts">
+        <header class="apphead apphead--compact">
+          <button class="iconbtn iconbtn--ghost" type="button" data-go="dashboard" aria-label="Back">
+            <svg class="icon"><use href="#i-back"/></svg>
+          </button>
+          <div>
+            <h1 class="apphead__title apphead__title--sm">Vendor Accounts</h1>
+            <p class="apphead__sub" id="vendors-sub">—</p>
+          </div>
+        </header>
+
+        <div class="segmented" role="tablist" aria-label="Vendor period">
+          <button class="segmented__btn is-on" type="button" role="tab" aria-selected="true" data-vperiod="daily">Today</button>
+          <button class="segmented__btn" type="button" role="tab" aria-selected="false" data-vperiod="weekly">7 days</button>
+          <button class="segmented__btn" type="button" role="tab" aria-selected="false" data-vperiod="monthly">30 days</button>
+          <span class="segmented__pill" id="vendpill"></span>
+        </div>
+
+        <div class="scrollarea">
+          <ul class="vendorlist" id="vendor-list"></ul>
+        </div>
+
+        <button class="fab" type="button" id="vendor-add" aria-label="Add vendor account">
+          <svg class="icon"><use href="#i-plus"/></svg>
+        </button>
+      </section>
+
+      <!-- ===================== 7. VENDOR HOME ===================== -->
+      <section class="screen screen--fixed" id="screen-vhome" aria-label="Vendor home">
+        <header class="apphead">
+          <div>
+            <p class="apphead__date" id="vhome-date">—</p>
+            <h1 class="apphead__title" id="vhome-greeting">Welcome</h1>
+            <p class="apphead__sub">Counter sales · scan a box to sell it</p>
+          </div>
+          <button class="iconbtn iconbtn--ghost" type="button" id="vhome-signout" aria-label="Sign out">
+            <svg class="icon"><use href="#i-flip"/></svg>
+          </button>
+        </header>
+
+        <div class="metricgrid metricgrid--tight">
+          <div class="card metric">
+            <p class="metric__label">Boxes sold today</p>
+            <p class="metric__value" id="v-boxes">—</p>
+            <p class="metric__delta" id="v-boxes-meta"></p>
+          </div>
+          <div class="card metric">
+            <p class="metric__label">My profit today</p>
+            <p class="metric__value metric__value--good" id="v-profit">—</p>
+            <p class="metric__delta" id="v-profit-meta"></p>
+          </div>
+        </div>
+
+        <div class="searchbar">
+          <svg class="icon searchbar__icon"><use href="#i-search"/></svg>
+          <input id="v-search" type="search" placeholder="Search available medicines" aria-label="Search available medicines" autocomplete="off">
+        </div>
+
+        <div class="scrollarea">
+          <ul class="stocklist" id="v-stock"></ul>
+          <p class="emptystate" id="v-empty" hidden>No medicine matches that search.</p>
+        </div>
+
+        <button class="fab fab--wide" type="button" data-go="vsell">
+          <svg class="icon"><use href="#i-barcode"/></svg> Scan to sell
+        </button>
+      </section>
+
+      <!-- ===================== 8. VENDOR SALES ===================== -->
+      <section class="screen screen--scroll" id="screen-vsales" aria-label="My sales">
+        <header class="apphead apphead--compact">
+          <div>
+            <h1 class="apphead__title apphead__title--sm">My Sales</h1>
+            <p class="apphead__sub" id="vsales-sub">—</p>
+          </div>
+        </header>
+
+        <div class="segmented" role="tablist" aria-label="Sales period">
+          <button class="segmented__btn is-on" type="button" role="tab" aria-selected="true" data-speriod="daily">Today</button>
+          <button class="segmented__btn" type="button" role="tab" aria-selected="false" data-speriod="weekly">7 days</button>
+          <button class="segmented__btn" type="button" role="tab" aria-selected="false" data-speriod="monthly">30 days</button>
+          <span class="segmented__pill" id="salespill"></span>
+        </div>
+
+        <div class="card profit">
+          <p class="profit__label">My Profit</p>
+          <p class="profit__value" id="vs-profit">$0</p>
+          <p class="profit__trend"><svg class="icon icon--xs"><use href="#i-trend"/></svg> <span id="vs-trend">—</span></p>
+          <p class="profit__note" id="vs-note">—</p>
+        </div>
+
+        <div class="duo">
+          <div class="card duo__card">
+            <p class="duo__label">Boxes sold</p>
+            <p class="duo__value" id="vs-boxes">0</p>
+            <p class="duo__meta" id="vs-boxes-meta">—</p>
+          </div>
+          <div class="card duo__card">
+            <p class="duo__label">Takings</p>
+            <p class="duo__value duo__value--cost" id="vs-revenue">$0</p>
+            <p class="duo__meta" id="vs-revenue-meta">—</p>
+          </div>
+        </div>
+
+        <div class="section-head"><h2 class="section-title">My Best Sellers</h2><span class="section-note">Profit</span></div>
+        <ul class="card ranklist" id="vs-top"></ul>
+
+        <div class="section-head"><h2 class="section-title">Recent Scans</h2></div>
+        <ul class="card activity" id="vs-recent"></ul>
+      </section>
+
     </main>
 
-    <!-- ========================== TAB BAR ========================== -->
-    <nav class="tabbar" aria-label="Primary">
+    <!-- ========================== TAB BARS ========================== -->
+    <nav class="tabbar" id="tabs-manager" aria-label="Primary">
       <button class="tab is-on" type="button" data-go="dashboard" aria-current="page">
         <svg class="icon"><use href="#i-grid"/></svg><span>Dashboard</span>
       </button>
@@ -402,10 +623,26 @@
       <button class="tab" type="button" data-go="inventory">
         <svg class="icon"><use href="#i-box"/></svg><span>Inventory</span>
       </button>
+      <button class="tab" type="button" data-go="vendors">
+        <svg class="icon"><use href="#i-user"/></svg><span>Vendors</span>
+      </button>
       <button class="tab" type="button" data-go="reports">
         <svg class="icon"><use href="#i-chart"/></svg><span>Reports</span>
       </button>
     </nav>
+
+    <nav class="tabbar" id="tabs-vendor" aria-label="Primary" hidden>
+      <button class="tab is-on" type="button" data-go="vhome" aria-current="page">
+        <svg class="icon"><use href="#i-box"/></svg><span>Stock</span>
+      </button>
+      <button class="tab" type="button" data-go="vsell">
+        <svg class="icon"><use href="#i-barcode"/></svg><span>Sell</span>
+      </button>
+      <button class="tab" type="button" data-go="vsales">
+        <svg class="icon"><use href="#i-chart"/></svg><span>My Sales</span>
+      </button>
+    </nav>
+
     <div class="homebar" aria-hidden="true"></div>
 
     <!-- ===================== ADD-STOCK SHEET ===================== -->
@@ -521,6 +758,65 @@
         <div class="sheet__actions">
           <button class="btn btn--ghost" type="button" id="item-cancel">Cancel</button>
           <button class="btn btn--primary" type="submit" id="item-save">Add line</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ===================== VENDOR ACCOUNT SHEET ===================== -->
+    <div class="sheet sheet--modal" id="vendor-sheet" aria-hidden="true" role="dialog" aria-label="Vendor account">
+      <div class="sheet__grab"></div>
+      <h2 class="sheet__title" id="vendor-sheet-title">Add vendor</h2>
+      <form id="vendor-form" novalidate>
+        <div class="field">
+          <label class="field__label" for="vn-name">Vendor name</label>
+          <div class="field__control">
+            <svg class="icon field__icon"><use href="#i-user"/></svg>
+            <input id="vn-name" name="name" type="text" autocomplete="off" placeholder="e.g. Karim Toumi">
+          </div>
+          <p class="field__error" data-error-for="name"></p>
+        </div>
+        <div class="field">
+          <label class="field__label" for="vn-pin">4-digit PIN</label>
+          <div class="field__control">
+            <svg class="icon field__icon"><use href="#i-hash"/></svg>
+            <input id="vn-pin" name="pin" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
+          </div>
+          <p class="field__error" data-error-for="pin"></p>
+        </div>
+        <p class="sheet__note">The PIN keeps sales attributed to the right person on a shared phone. It is stored on this device and is not a security boundary.</p>
+        <div class="sheet__actions">
+          <button class="btn btn--ghost" type="button" id="vendor-cancel">Cancel</button>
+          <button class="btn btn--primary" type="submit" id="vendor-save">Add vendor</button>
+        </div>
+        <button class="btn btn--danger btn--block" type="button" id="vendor-remove" hidden>Remove this vendor</button>
+      </form>
+    </div>
+
+    <!-- ===================== PRICE SHEET (manager) ===================== -->
+    <div class="sheet sheet--modal" id="price-sheet" aria-hidden="true" role="dialog" aria-label="Medicine pricing">
+      <div class="sheet__grab"></div>
+      <h2 class="sheet__title" id="price-sheet-title">Pricing</h2>
+      <form id="price-form" novalidate>
+        <div class="field-row">
+          <div class="field">
+            <label class="field__label" for="pr-price">Selling price / unit</label>
+            <div class="field__control">
+              <input id="pr-price" name="price" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.85">
+            </div>
+            <p class="field__error" data-error-for="price"></p>
+          </div>
+          <div class="field">
+            <label class="field__label" for="pr-cost">Cost / unit</label>
+            <div class="field__control">
+              <input id="pr-cost" name="cost" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.48">
+            </div>
+            <p class="field__error" data-error-for="cost"></p>
+          </div>
+        </div>
+        <p class="sheet__note" id="price-margin">—</p>
+        <div class="sheet__actions">
+          <button class="btn btn--ghost" type="button" id="price-cancel">Cancel</button>
+          <button class="btn btn--primary" type="submit">Save pricing</button>
         </div>
       </form>
     </div>

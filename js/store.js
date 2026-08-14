@@ -12,9 +12,28 @@
 (function (global) {
   'use strict';
 
-  var KEY = 'pharmacheck.db.v3';
-  var LEGACY_KEY = 'pharmacheck.db.v2';
+  var KEY = 'pharmacheck.db.v4';
+  var LEGACY_V3 = 'pharmacheck.db.v3';
+  var LEGACY_V2 = 'pharmacheck.db.v2';
   var DAY = 86400000;
+
+  /* Accounts and roles.
+   *
+   * This is a local profile switcher with a PIN, not authentication: there is
+   * no server, so the PIN only stops a colleague picking up the phone and
+   * billing sales to someone else. Anyone with the device can read it. Real
+   * multi-user access control needs a backend, which this app does not have.
+   */
+  var MANAGER = 'manager';
+  var VENDOR = 'vendor';
+
+  function defaultAccounts(now) {
+    return [
+      { id: 'acc-1', name: 'Sarah Kaur',  role: MANAGER, pin: '1234', active: true, createdAt: now },
+      { id: 'acc-2', name: 'Youssef Ben', role: VENDOR,  pin: '1111', active: true, createdAt: now },
+      { id: 'acc-3', name: 'Nadia Cherif', role: VENDOR, pin: '2222', active: true, createdAt: now }
+    ];
+  }
 
   /* EAN-13 check digit, so the catalogue barcodes are genuinely scannable
      rather than 13 arbitrary digits. */
@@ -150,12 +169,49 @@
   }
 
   function fresh() {
+    var now = Date.now();
     return {
-      version: 3,
+      version: 4,
       seq: 480,
       medicines: CATALOGUE.map(function (m) { return Object.assign({}, m); }),
-      prescriptions: seedHistory()
+      prescriptions: seedHistory(),
+      accounts: defaultAccounts(now),
+      sales: seedSales(),
+      sessionId: null
     };
+  }
+
+  /* Counter sales attributed to the seeded vendors, so a vendor's profit
+     screen is not empty before they have scanned anything. */
+  function seedSales() {
+    var rand = lcg(770214);
+    var out = [];
+    var now = Date.now();
+    var vendors = ['acc-2', 'acc-3'];
+    var names = { 'acc-2': 'Youssef Ben', 'acc-3': 'Nadia Cherif' };
+
+    for (var back = 30; back >= 0; back--) {
+      var dayStart = startOfDay(now - back * DAY);
+      var count = 3 + Math.floor(rand() * 7);
+      for (var i = 0; i < count; i++) {
+        var med = CATALOGUE[Math.floor(rand() * CATALOGUE.length)];
+        var vendorId = vendors[Math.floor(rand() * vendors.length)];
+        var boxes = 1 + Math.floor(rand() * 3);
+        out.push({
+          id: 'sale-seed-' + out.length,
+          vendorId: vendorId,
+          vendorName: names[vendorId],
+          medicine: med.name,
+          barcode: med.barcode,
+          boxes: boxes,
+          unitPrice: med.price,
+          unitCost: med.cost,
+          at: dayStart + Math.floor((9 + rand() * 9) * 3600000),
+          source: 'seed'
+        });
+      }
+    }
+    return out;
   }
 
   /* Records written before multi-medicine support carried a single flat
@@ -204,22 +260,45 @@
     };
   }
 
+  /* Existing installs keep their medicines and prescriptions; accounts and
+     sales simply start empty-but-seeded alongside them. */
+  function migrateToV4(three) {
+    return {
+      version: 4,
+      seq: three.seq || 480,
+      medicines: three.medicines || [],
+      prescriptions: three.prescriptions || [],
+      accounts: defaultAccounts(Date.now()),
+      sales: seedSales(),
+      sessionId: null
+    };
+  }
+
   function load() {
     if (db) return db;
     try {
       var raw = global.localStorage && global.localStorage.getItem(KEY);
       if (raw) {
         var parsed = JSON.parse(raw);
-        if (parsed && parsed.version === 3 && Array.isArray(parsed.medicines)) {
+        if (parsed && parsed.version === 4 && Array.isArray(parsed.medicines)) {
           db = parsed;
           return db;
         }
       }
-      var legacy = global.localStorage && global.localStorage.getItem(LEGACY_KEY);
+      var v3 = global.localStorage && global.localStorage.getItem(LEGACY_V3);
+      if (v3) {
+        var three = JSON.parse(v3);
+        if (three && Array.isArray(three.medicines)) {
+          db = migrateToV4(three);
+          save();
+          return db;
+        }
+      }
+      var legacy = global.localStorage && global.localStorage.getItem(LEGACY_V2);
       if (legacy) {
         var old = JSON.parse(legacy);
         if (old && Array.isArray(old.medicines)) {
-          db = migrateFromV2(old);
+          db = migrateToV4(migrateFromV2(old));
           save();
           return db;
         }
@@ -470,6 +549,210 @@
     };
   }
 
+  /* ------------------------------------------------------------------ *
+   * Accounts, roles and the session
+   * ------------------------------------------------------------------ */
+  function accounts() { return load().accounts; }
+
+  function vendors() {
+    return accounts().filter(function (a) { return a.role === VENDOR; });
+  }
+
+  function findAccount(id) {
+    return accounts().find(function (a) { return a.id === id; }) || null;
+  }
+
+  function currentAccount() {
+    var d = load();
+    return d.sessionId ? findAccount(d.sessionId) : null;
+  }
+
+  function isManager() {
+    var a = currentAccount();
+    return Boolean(a && a.role === MANAGER);
+  }
+
+  function signIn(id, pin) {
+    var account = findAccount(id);
+    if (!account) return { ok: false, message: 'No such account' };
+    if (!account.active) return { ok: false, message: account.name + ' is deactivated' };
+    if (String(pin) !== String(account.pin)) return { ok: false, message: 'Incorrect PIN' };
+    load().sessionId = account.id;
+    save();
+    return { ok: true, account: account };
+  }
+
+  function signOut() {
+    load().sessionId = null;
+    save();
+  }
+
+  function addVendor(fields) {
+    var name = String(fields.name || '').trim();
+    if (!name) return { ok: false, message: 'Name is required' };
+    if (!/^\d{4}$/.test(String(fields.pin || ''))) {
+      return { ok: false, message: 'PIN must be 4 digits' };
+    }
+    var account = {
+      id: 'acc-' + Date.now().toString(36),
+      name: name,
+      role: VENDOR,
+      pin: String(fields.pin),
+      active: true,
+      createdAt: Date.now()
+    };
+    load().accounts.push(account);
+    save();
+    return { ok: true, account: account };
+  }
+
+  function updateVendor(id, fields) {
+    var account = findAccount(id);
+    if (!account || account.role !== VENDOR) return { ok: false, message: 'Not a vendor account' };
+    if (fields.name !== undefined) {
+      var n = String(fields.name).trim();
+      if (!n) return { ok: false, message: 'Name is required' };
+      account.name = n;
+    }
+    if (fields.pin) {
+      if (!/^\d{4}$/.test(String(fields.pin))) return { ok: false, message: 'PIN must be 4 digits' };
+      account.pin = String(fields.pin);
+    }
+    if (fields.active !== undefined) account.active = Boolean(fields.active);
+    save();
+    return { ok: true, account: account };
+  }
+
+  /* Vendors are deactivated rather than deleted when they have sales, so the
+     figures those sales feed into stay explainable. */
+  function removeVendor(id) {
+    var account = findAccount(id);
+    if (!account || account.role !== VENDOR) return { ok: false, message: 'Not a vendor account' };
+    var hasSales = sales().some(function (s) { return s.vendorId === id; });
+    if (hasSales) {
+      account.active = false;
+      save();
+      return { ok: true, deactivated: true, account: account };
+    }
+    var d = load();
+    d.accounts = d.accounts.filter(function (a) { return a.id !== id; });
+    if (d.sessionId === id) d.sessionId = null;
+    save();
+    return { ok: true, deactivated: false };
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Pricing — manager only, enforced by the caller
+   * ------------------------------------------------------------------ */
+  function setPricing(name, price, cost) {
+    var med = findMedicine(name);
+    if (!med) return { ok: false, message: 'Not in the catalogue' };
+    var p = Number(price), c = Number(cost);
+    if (!isFinite(p) || p < 0) return { ok: false, message: 'Enter a valid selling price' };
+    if (!isFinite(c) || c < 0) return { ok: false, message: 'Enter a valid cost' };
+    if (c > p) return { ok: false, message: 'Cost is higher than the selling price' };
+    med.price = Math.round(p * 100) / 100;
+    med.cost = Math.round(c * 100) / 100;
+    save();
+    return { ok: true, medicine: med };
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Counter sales — a vendor scanning boxes off the shelf
+   * ------------------------------------------------------------------ */
+  function sales() { return load().sales; }
+
+  function recordSale(vendorId, medicineName, boxes) {
+    var vendor = findAccount(vendorId);
+    if (!vendor) return { ok: false, message: 'Unknown vendor account' };
+    var med = findMedicine(medicineName);
+    if (!med) return { ok: false, message: medicineName + ' is not stocked here' };
+
+    var count = Math.max(1, Math.floor(Number(boxes) || 1));
+    if (med.qty < count) {
+      return { ok: false, message: 'Only ' + med.qty + ' of ' + med.name + ' left' };
+    }
+
+    med.qty -= count;
+    var sale = {
+      id: 'sale-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1000),
+      vendorId: vendor.id,
+      vendorName: vendor.name,
+      medicine: med.name,
+      barcode: med.barcode,
+      boxes: count,
+      // Prices are captured at the moment of sale, so a later price change
+      // does not silently rewrite past profit.
+      unitPrice: med.price,
+      unitCost: med.cost,
+      at: Date.now(),
+      source: 'scan'
+    };
+    load().sales.push(sale);
+    save();
+    return { ok: true, sale: sale, medicine: med };
+  }
+
+  function salesBetween(from, to, vendorId) {
+    return sales().filter(function (s) {
+      if (vendorId && s.vendorId !== vendorId) return false;
+      return s.at >= from && s.at < to;
+    });
+  }
+
+  function saleTotals(list) {
+    var revenue = 0, cost = 0, boxes = 0;
+    list.forEach(function (s) {
+      revenue += s.unitPrice * s.boxes;
+      cost += s.unitCost * s.boxes;
+      boxes += s.boxes;
+    });
+    return {
+      revenue: revenue, cost: cost, profit: revenue - cost,
+      boxes: boxes, count: list.length
+    };
+  }
+
+  /* Vendor performance over today / last 7 / last 30 days, plus their best
+     sellers by profit contribution. */
+  function vendorStats(vendorId, period) {
+    var spans = { daily: DAY, weekly: DAY * 7, monthly: DAY * 30 };
+    var span = spans[period] || spans.daily;
+    var end = startOfDay(Date.now()) + DAY;
+    var from = end - span;
+
+    var current = saleTotals(salesBetween(from, end, vendorId));
+    var previous = saleTotals(salesBetween(from - span, from, vendorId));
+    var change = previous.profit > 0
+      ? ((current.profit - previous.profit) / previous.profit) * 100
+      : null;
+
+    var byMedicine = {};
+    salesBetween(from, end, vendorId).forEach(function (s) {
+      var e = byMedicine[s.medicine] || (byMedicine[s.medicine] = { boxes: 0, profit: 0, revenue: 0 });
+      e.boxes += s.boxes;
+      e.revenue += s.unitPrice * s.boxes;
+      e.profit += (s.unitPrice - s.unitCost) * s.boxes;
+    });
+    var top = Object.keys(byMedicine).map(function (name) {
+      return {
+        name: name, boxes: byMedicine[name].boxes,
+        revenue: byMedicine[name].revenue, profit: byMedicine[name].profit
+      };
+    }).sort(function (a, b) { return b.profit - a.profit; }).slice(0, 5);
+
+    return {
+      revenue: current.revenue, cost: current.cost, profit: current.profit,
+      boxes: current.boxes, count: current.count,
+      change: change, rangeFrom: from, rangeTo: end, top: top
+    };
+  }
+
+  function recentSales(vendorId, limit) {
+    return sales().filter(function (s) { return !vendorId || s.vendorId === vendorId; })
+      .slice().sort(function (a, b) { return b.at - a.at; }).slice(0, limit || 8);
+  }
+
   function reset() { db = fresh(); save(); }
 
   global.PharmaStore = {
@@ -479,6 +762,18 @@
     prescriptions: prescriptions, nextCode: nextCode, findByCode: findByCode,
     createPrescription: createPrescription, checkAvailability: checkAvailability, fill: fill,
     summarise: summarise, unitsIn: unitsIn, defaultRoute: defaultRoute,
-    todaySummary: todaySummary, recentActivity: recentActivity, report: report
+    todaySummary: todaySummary, recentActivity: recentActivity, report: report,
+
+    // accounts and roles
+    MANAGER: MANAGER, VENDOR: VENDOR,
+    accounts: accounts, vendors: vendors, findAccount: findAccount,
+    currentAccount: currentAccount, isManager: isManager,
+    signIn: signIn, signOut: signOut,
+    addVendor: addVendor, updateVendor: updateVendor, removeVendor: removeVendor,
+
+    // pricing and counter sales
+    setPricing: setPricing,
+    sales: sales, recordSale: recordSale, recentSales: recentSales,
+    salesBetween: salesBetween, saleTotals: saleTotals, vendorStats: vendorStats
   };
 })(typeof self !== 'undefined' ? self : this);

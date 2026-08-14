@@ -91,13 +91,29 @@
    * ------------------------------------------------------------------ */
   var TAB_FOR_SCREEN = {
     dashboard: 'dashboard', scanner: 'scanner', manual: 'scanner',
-    inventory: 'inventory', reports: 'reports'
+    inventory: 'inventory', reports: 'reports', vendors: 'vendors',
+    vhome: 'vhome', vsell: 'vsell', vsales: 'vsales'
   };
+
+  /* What each role may reach. The guard in go() is the single place this is
+     enforced, so a stray link cannot land a vendor on a manager screen. */
+  var MANAGER_SCREENS = ['dashboard', 'scanner', 'manual', 'inventory', 'reports', 'vendors'];
+  var VENDOR_SCREENS = ['vhome', 'vsell', 'vsales'];
 
   var current = 'dashboard';
 
   function go(name) {
     if (!$('#screen-' + name)) return;
+
+    var account = Store.currentAccount();
+    if (!account) {
+      name = 'signin';
+    } else if (name !== 'signin') {
+      var allowed = account.role === Store.MANAGER ? MANAGER_SCREENS : VENDOR_SCREENS;
+      if (allowed.indexOf(name) === -1) {
+        name = account.role === Store.MANAGER ? 'dashboard' : 'vhome';
+      }
+    }
 
     $$('.screen').forEach(function (s) { s.classList.remove('is-active'); });
     $('#screen-' + name).classList.add('is-active');
@@ -110,13 +126,20 @@
       else t.removeAttribute('aria-current');
     });
 
-    phone.classList.toggle('is-dark', name === 'scanner');
+    phone.classList.toggle('is-dark', name === 'scanner' || name === 'vsell');
 
     if (name === 'scanner') openCamera();
     else closeCamera();
 
+    if (name === 'vsell') openSellCamera();
+    else closeSellCamera();
+
+    if (name === 'signin') renderSignIn();
     if (name === 'dashboard') renderDashboard();
     if (name === 'inventory') renderStock();
+    if (name === 'vendors') { renderVendors(); requestAnimationFrame(moveVendPill); }
+    if (name === 'vhome') renderVendorHome();
+    if (name === 'vsales') { renderVendorSales(); requestAnimationFrame(moveSalesPill); }
     if (name === 'reports') {
       renderReports(activePeriod);
       requestAnimationFrame(moveSegPill);
@@ -131,7 +154,15 @@
 
   window.__pharmacheckBack = function () {
     if (stockSheet.classList.contains('is-open')) { closeStockSheet(); return; }
+    if (itemSheet.classList.contains('is-open')) { closeItemSheet(); return; }
+    if (vendorSheet.classList.contains('is-open')) { closeVendorSheet(); return; }
+    if (priceSheet.classList.contains('is-open')) { closePriceSheet(); return; }
     if (scanSheet.classList.contains('is-open')) { resumeScanning(); return; }
+    if (sellSheet.classList.contains('is-open')) { resumeSelling(); return; }
+
+    var account = Store.currentAccount();
+    if (!account) return;
+    if (account.role === Store.VENDOR) { go('vhome'); return; }
     if (current === 'manual') { go('scanner'); return; }
     go('dashboard');
   };
@@ -928,6 +959,12 @@
               '</p>' +
             '</div>' +
           '</div>' +
+          '<button class="pricerow" type="button" data-price="' + escapeHtml(item.name) + '">' +
+            '<span class="pricerow__pair">' + money(item.price) + ' sell · ' + money(item.cost) + ' cost</span>' +
+            '<span class="pricerow__margin">' +
+              (item.price > 0 ? Math.round(((item.price - item.cost) / item.price) * 100) : 0) + '% margin' +
+              ' <svg class="icon icon--xs"><use href="#i-pen"/></svg></span>' +
+          '</button>' +
           '<div class="stepper">' +
             '<button class="stepper__btn" type="button" data-step="-1" aria-label="Take one unit of ' + escapeHtml(item.name) + '">' +
               '<svg class="icon icon--xs"><use href="#i-minus"/></svg></button>' +
@@ -1040,10 +1077,11 @@
 
   /* Tapping the number opens the sheet for a precise amount. */
   listEl.addEventListener('click', function (event) {
+    var priced = event.target.closest('[data-price]');
+    if (priced) { openPriceSheet(priced.dataset.price); return; }
     var pad = event.target.closest('[data-adjust]');
     if (!pad) return;
-    var name = pad.closest('.stockrow').dataset.name;
-    openStockSheet(name);
+    openStockSheet(pad.closest('.stockrow').dataset.name);
   });
 
   /* ---- add / adjust stock sheet ---- */
@@ -1078,6 +1116,8 @@
   scrim.addEventListener('click', function () {
     if (stockSheet.classList.contains('is-open')) closeStockSheet();
     if (itemSheet.classList.contains('is-open')) closeItemSheet();
+    if (vendorSheet.classList.contains('is-open')) closeVendorSheet();
+    if (priceSheet.classList.contains('is-open')) closePriceSheet();
   });
 
   stockForm.addEventListener('input', function (event) {
@@ -1241,11 +1281,11 @@
     $('#chart').innerHTML = svg.join('');
   }
 
-  var segButtons = $$('.segmented__btn');
+  var segButtons = $$('#screen-reports .segmented__btn');
   var segPill = $('#segpill');
 
   function moveSegPill() {
-    var active = $('.segmented__btn.is-on');
+    var active = $('#screen-reports .segmented__btn.is-on');
     if (!active || !active.offsetWidth) return;
     segPill.style.width = active.offsetWidth + 'px';
     segPill.style.transform = 'translateX(' + active.offsetLeft + 'px)';
@@ -1266,6 +1306,615 @@
   window.addEventListener('resize', moveSegPill);
 
   /* ================================================================== *
+   * 6. Accounts, roles and sign-in
+   * ================================================================== */
+  function applyRole() {
+    var account = Store.currentAccount();
+    var isMgr = Boolean(account && account.role === Store.MANAGER);
+    var isVendor = Boolean(account && account.role === Store.VENDOR);
+
+    document.documentElement.classList.toggle('role-manager', isMgr);
+    document.documentElement.classList.toggle('role-vendor', isVendor);
+    $('#tabs-manager').hidden = !isMgr;
+    $('#tabs-vendor').hidden = !isVendor;
+  }
+
+  var pinFor = null;     // account awaiting a PIN
+  var pinEntry = '';
+
+  function renderSignIn() {
+    pinFor = null;
+    pinEntry = '';
+    $('#pinpad').hidden = true;
+    $('#pin-error').textContent = '';
+
+    var list = Store.accounts().filter(function (a) { return a.active; });
+    $('#signin-accounts').innerHTML = list.map(function (a) {
+      var initials = a.name.split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase();
+      return '' +
+        '<li><button class="acctrow" type="button" data-account="' + escapeHtml(a.id) + '">' +
+          '<span class="acctrow__avatar' + (a.role === Store.MANAGER ? ' acctrow__avatar--mgr' : '') + '">' +
+            escapeHtml(initials) + '</span>' +
+          '<span class="acctrow__body">' +
+            '<span class="acctrow__name">' + escapeHtml(a.name) + '</span>' +
+            '<span class="acctrow__role">' + (a.role === Store.MANAGER ? 'Pharmacy manager' : 'Vendor') + '</span>' +
+          '</span>' +
+          '<svg class="icon icon--xs acctrow__go"><use href="#i-chevron"/></svg>' +
+        '</button></li>';
+    }).join('');
+  }
+
+  function paintPinDots() {
+    var dots = '';
+    for (var i = 0; i < 4; i++) {
+      dots += '<span class="pindot' + (i < pinEntry.length ? ' is-on' : '') + '"></span>';
+    }
+    $('#pin-dots').innerHTML = dots;
+  }
+
+  $('#signin-accounts').addEventListener('click', function (event) {
+    var btn = event.target.closest('[data-account]');
+    if (!btn) return;
+    pinFor = Store.findAccount(btn.dataset.account);
+    if (!pinFor) return;
+    pinEntry = '';
+    $('#pin-who').textContent = pinFor.name + ' · ' +
+      (pinFor.role === Store.MANAGER ? 'Manager' : 'Vendor');
+    $('#pin-error').textContent = '';
+    $('#pinpad').hidden = false;
+    paintPinDots();
+    $('#pinpad').scrollIntoView({ behavior: 'smooth', block: 'end' });
+  });
+
+  $('#pinpad').addEventListener('click', function (event) {
+    var key = event.target.closest('[data-key]');
+    if (!key || !pinFor) return;
+    var k = key.dataset.key;
+
+    if (k === 'del') pinEntry = pinEntry.slice(0, -1);
+    else if (pinEntry.length < 4) pinEntry += k;
+
+    paintPinDots();
+    $('#pin-error').textContent = '';
+
+    if (pinEntry.length === 4) {
+      var out = Store.signIn(pinFor.id, pinEntry);
+      if (!out.ok) {
+        $('#pin-error').textContent = out.message;
+        pinEntry = '';
+        setTimeout(paintPinDots, 120);
+        if (navigator.vibrate) navigator.vibrate([12, 60, 12]);
+        return;
+      }
+      applyRole();
+      toast('Signed in as ' + out.account.name);
+      go(out.account.role === Store.MANAGER ? 'dashboard' : 'vhome');
+    }
+  });
+
+  $('#pin-back').addEventListener('click', function () {
+    pinFor = null;
+    pinEntry = '';
+    $('#pinpad').hidden = true;
+  });
+
+  function signOut() {
+    Store.signOut();
+    applyRole();
+    renderSignIn();
+    go('signin');
+  }
+
+  $('#vhome-signout').addEventListener('click', signOut);
+
+  /* ================================================================== *
+   * 7. Vendor accounts (manager)
+   * ================================================================== */
+  var vendorPeriod = 'daily';
+  var vendorSheet = $('#vendor-sheet');
+  var vendorForm = $('#vendor-form');
+  var editingVendor = null;
+
+  function renderVendors() {
+    var list = Store.vendors();
+    var active = list.filter(function (v) { return v.active; }).length;
+    $('#vendors-sub').textContent = list.length + (list.length === 1 ? ' vendor' : ' vendors') +
+      ' · ' + active + ' active';
+
+    $('#vendor-list').innerHTML = list.length ? list.map(function (v) {
+      var st = Store.vendorStats(v.id, vendorPeriod);
+      var initials = v.name.split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase();
+      return '' +
+        '<li class="vendorcard' + (v.active ? '' : ' vendorcard--off') + '">' +
+          '<button class="vendorcard__main" type="button" data-vendor="' + escapeHtml(v.id) + '">' +
+            '<span class="acctrow__avatar">' + escapeHtml(initials) + '</span>' +
+            '<span class="vendorcard__body">' +
+              '<span class="vendorcard__name">' + escapeHtml(v.name) +
+                (v.active ? '' : ' <span class="badge badge--amber">Inactive</span>') + '</span>' +
+              '<span class="vendorcard__meta">' + st.boxes + ' boxes · ' + st.count +
+                (st.count === 1 ? ' sale' : ' sales') + '</span>' +
+            '</span>' +
+            '<span class="vendorcard__profit">' + money(st.profit) +
+              '<small>profit</small></span>' +
+          '</button>' +
+        '</li>';
+    }).join('') : '<li class="emptystate">No vendor accounts yet.</li>';
+  }
+
+  $$('[data-vperiod]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      $$('[data-vperiod]').forEach(function (o) {
+        o.classList.toggle('is-on', o === b);
+        o.setAttribute('aria-selected', String(o === b));
+      });
+      vendorPeriod = b.dataset.vperiod;
+      moveVendPill();
+      renderVendors();
+    });
+  });
+
+  function moveVendPill() { movePill('#screen-vendors', '#vendpill'); }
+  function moveSalesPill() { movePill('#screen-vsales', '#salespill'); }
+  function movePill(screenSel, pillSel) {
+    var active = $(screenSel + ' .segmented__btn.is-on');
+    var pill = $(pillSel);
+    if (!active || !pill || !active.offsetWidth) return;
+    pill.style.width = active.offsetWidth + 'px';
+    pill.style.transform = 'translateX(' + active.offsetLeft + 'px)';
+  }
+
+  function openVendorSheet(id) {
+    editingVendor = id ? Store.findAccount(id) : null;
+    hideToast();
+    vendorForm.reset();
+    $$('.field', vendorForm).forEach(function (f) { f.classList.remove('is-bad'); });
+
+    $('#vendor-sheet-title').textContent = editingVendor ? 'Edit vendor' : 'Add vendor';
+    $('#vendor-save').textContent = editingVendor ? 'Save vendor' : 'Add vendor';
+    $('#vendor-remove').hidden = !editingVendor;
+    if (editingVendor) {
+      vendorForm.elements.name.value = editingVendor.name;
+      vendorForm.elements.pin.value = '';
+      vendorForm.elements.pin.placeholder = 'unchanged';
+    } else {
+      vendorForm.elements.pin.placeholder = '1234';
+    }
+
+    scrim.hidden = false;
+    requestAnimationFrame(function () { scrim.classList.add('is-on'); });
+    vendorSheet.classList.add('is-open');
+    vendorSheet.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeVendorSheet() {
+    scrim.classList.remove('is-on');
+    vendorSheet.classList.remove('is-open');
+    vendorSheet.setAttribute('aria-hidden', 'true');
+    setTimeout(function () { if (!anySheetOpen()) scrim.hidden = true; }, 300);
+    editingVendor = null;
+  }
+
+  $('#vendor-add').addEventListener('click', function () { openVendorSheet(null); });
+  $('#vendor-cancel').addEventListener('click', closeVendorSheet);
+  $('#vendor-list').addEventListener('click', function (event) {
+    var btn = event.target.closest('[data-vendor]');
+    if (btn) openVendorSheet(btn.dataset.vendor);
+  });
+
+  vendorForm.addEventListener('input', function (event) {
+    var field = event.target.closest('.field');
+    if (field) field.classList.remove('is-bad');
+  });
+
+  vendorForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    var name = vendorForm.elements.name.value.trim();
+    var pin = vendorForm.elements.pin.value.trim();
+
+    var out = editingVendor
+      ? Store.updateVendor(editingVendor.id, pin ? { name: name, pin: pin } : { name: name })
+      : Store.addVendor({ name: name, pin: pin });
+
+    if (!out.ok) {
+      markBad(/pin/i.test(out.message) ? vendorForm.elements.pin : vendorForm.elements.name, out.message);
+      return;
+    }
+    var wasEditing = Boolean(editingVendor);
+    closeVendorSheet();
+    renderVendors();
+    toast(wasEditing ? out.account.name + ' updated' : out.account.name + ' added as a vendor');
+  });
+
+  $('#vendor-remove').addEventListener('click', function () {
+    if (!editingVendor) return;
+    var name = editingVendor.name;
+    var out = Store.removeVendor(editingVendor.id);
+    closeVendorSheet();
+    renderVendors();
+    toast(out.deactivated
+      ? name + ' deactivated — past sales are kept'
+      : name + ' removed');
+  });
+
+  /* ================================================================== *
+   * 8. Vendor home — stats and medicine search
+   * ================================================================== */
+  function renderVendorHome() {
+    var account = Store.currentAccount();
+    if (!account) return;
+
+    $('#vhome-date').textContent = new Date().toLocaleDateString([], {
+      weekday: 'long', day: 'numeric', month: 'long'
+    });
+    $('#vhome-greeting').textContent = 'Welcome, ' + account.name.split(/\s+/)[0];
+
+    var st = Store.vendorStats(account.id, 'daily');
+    $('#v-boxes').textContent = st.boxes;
+    $('#v-boxes-meta').textContent = st.count + (st.count === 1 ? ' sale' : ' sales') + ' today';
+    $('#v-profit').textContent = money(st.profit);
+    $('#v-profit-meta').textContent = money(st.revenue) + ' taken';
+
+    renderVendorStock();
+  }
+
+  function renderVendorStock() {
+    var query = $('#v-search').value.trim().toLowerCase();
+    var rows = Store.medicines().filter(function (m) {
+      if (!query) return true;
+      return m.name.toLowerCase().indexOf(query) !== -1 ||
+             String(m.barcode || '').indexOf(query) !== -1;
+    }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+
+    $('#v-stock').innerHTML = rows.map(function (m) {
+      var low = Store.isLow(m);
+      var out = m.qty === 0;
+      return '' +
+        '<li class="stockrow ' + (low ? 'stockrow--low' : 'stockrow--ok') + '">' +
+          '<div class="stockrow__top">' +
+            '<span class="stockrow__dot" aria-hidden="true"></span>' +
+            '<div class="stockrow__body">' +
+              '<p class="stockrow__name">' + escapeHtml(m.name) +
+                (m.strength ? ' <span class="stockrow__strength">' + escapeHtml(m.strength) + '</span>' : '') + '</p>' +
+              '<p class="stockrow__meta">' +
+                '<span>' + escapeHtml(V.formLabel(m.form)) + ' · ' + escapeHtml(V.packagingLabel(m.packaging)) + '</span>' +
+                '<span>' + money(m.price) + ' / unit</span>' +
+                (out ? '<span class="stockrow__warn">Out of stock</span>'
+                     : low ? '<span class="stockrow__warn">Low</span>' : '') +
+              '</p>' +
+            '</div>' +
+            '<div class="stockrow__right">' +
+              '<p class="stockrow__qty">' + m.qty + '</p>' +
+              '<p class="stockrow__unit">available</p>' +
+            '</div>' +
+          '</div>' +
+        '</li>';
+    }).join('');
+
+    $('#v-empty').hidden = rows.length > 0;
+  }
+
+  $('#v-search').addEventListener('input', renderVendorStock);
+
+  /* ================================================================== *
+   * 9. Vendor sell — scan a box off the shelf
+   * ================================================================== */
+  var sellCamera = $('#sell-camera');
+  var sellVideo = $('#sell-feed');
+  var sellSheet = $('#sell-sheet');
+  var sellScanner = new window.PharmaScanner.Scanner(sellVideo);
+  var sellStream = null;
+  var sellFlashOn = false;
+  var sellPending = null;
+  var sellBoxes = 1;
+  var sessionBoxes = 0;
+  var sessionProfit = 0;
+
+  function setSellState(visible, opts) {
+    var box = $('#sell-state');
+    box.hidden = !visible;
+    if (!visible) return;
+    $('#sell-state-title').textContent = opts.title;
+    $('#sell-state-body').textContent = opts.body;
+    $('#sell-state-actions').hidden = !opts.actions;
+  }
+
+  function openSellCamera() {
+    if (sellStream) { resumeSelling(); return; }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setSellState(true, { title: 'Camera not available', body: 'This device exposes no camera, so boxes cannot be scanned here.', actions: true });
+      return;
+    }
+    setSellState(true, { title: 'Starting camera…', body: 'Allow camera access to scan medicine boxes.' });
+
+    navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    }).then(function (media) {
+      sellStream = media;
+      sellVideo.srcObject = media;
+      return sellVideo.play().catch(function () {});
+    }).then(function () {
+      sellCamera.classList.add('is-live');
+      setSellState(false);
+      return sellScanner.negotiateFormats();
+    }).then(function () {
+      $('#sell-source').textContent = sellScanner.canReadBarcodes() ? 'Barcode + QR' : 'QR only · jsQR';
+      if (!sellScanner.canReadBarcodes()) {
+        toast('This device cannot read 1D barcodes — search by name instead');
+      }
+      startSelling();
+    }).catch(function (err) {
+      sellCamera.classList.remove('is-live');
+      var denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+      setSellState(true, {
+        title: denied ? 'Camera permission denied' : 'Camera unavailable',
+        body: denied ? 'Enable camera access for PharmaCheck in your device settings, then try again.'
+                     : (err && err.message) || 'The camera could not be started.',
+        actions: true
+      });
+    });
+  }
+
+  function closeSellCamera() {
+    sellScanner.stop();
+    if (!sellStream) return;
+    sellStream.getTracks().forEach(function (t) { t.stop(); });
+    sellStream = null;
+    sellVideo.srcObject = null;
+    sellCamera.classList.remove('is-live');
+    setSellFlash(false);
+  }
+
+  function startSelling() {
+    $('#sell-hint').textContent = 'Align the box barcode within the frame';
+    sellScanner.start(onSellDecoded, function () {});
+  }
+
+  function resumeSelling() {
+    sellSheet.classList.remove('is-open');
+    sellSheet.setAttribute('aria-hidden', 'true');
+    sellCamera.classList.remove('is-locked');
+    sellPending = null;
+    $('#sell-hint').textContent = 'Align the box barcode within the frame';
+    if (sellStream) sellScanner.start(onSellDecoded, function () {});
+  }
+
+  $('#sell-retry').addEventListener('click', function () { closeSellCamera(); openSellCamera(); });
+
+  function onSellDecoded(hit) {
+    sellScanner.stop();
+    if (navigator.vibrate) navigator.vibrate(18);
+    hideToast();
+
+    var parsed = window.PharmaScanner.parse(hit);
+    var med = parsed.kind === 'barcode' ? Store.findByBarcode(parsed.barcode) : null;
+
+    sellCamera.classList.add('is-locked');
+    $('#sell-hint').textContent = 'Code detected';
+
+    sellBoxes = 1;
+    sellPending = { parsed: parsed, medicine: med };
+    renderSellSheet();
+
+    setTimeout(function () {
+      sellSheet.classList.add('is-open');
+      sellSheet.setAttribute('aria-hidden', 'false');
+    }, 380);
+  }
+
+  function renderSellSheet() {
+    var med = sellPending.medicine;
+    var parsed = sellPending.parsed;
+    var rows = [];
+    var note = '';
+    var canSell = false;
+
+    if (!med) {
+      $('#sell-badge-text').textContent = parsed.kind === 'prescription'
+        ? 'That is a prescription code' : 'Not in the catalogue';
+      $('#sell-code').textContent = parsed.barcode || '—';
+      rows.push(['Scanned', (parsed.raw || '').slice(0, 60)]);
+      note = parsed.kind === 'prescription'
+        ? 'Prescriptions are dispensed by the pharmacist, not sold over the counter.'
+        : 'No medicine in the catalogue carries this barcode.';
+    } else {
+      $('#sell-badge-text').textContent = 'Medicine identified';
+      $('#sell-code').textContent = med.barcode;
+      rows.push(['Medicine', med.name]);
+      if (med.strength) rows.push(['Strength', med.strength]);
+      rows.push(['Packaging', V.packagingLabel(med.packaging)]);
+      rows.push(['Price', money(med.price) + ' / unit']);
+      rows.push(['In stock', units(med.qty)]);
+      canSell = med.qty > 0;
+      if (!canSell) note = med.name + ' is out of stock.';
+      else if (sellBoxes > med.qty) { note = 'Only ' + med.qty + ' left.'; canSell = false; }
+      else note = 'Sells for ' + money(med.price * sellBoxes) + ' · your profit ' +
+                  money((med.price - med.cost) * sellBoxes);
+    }
+
+    $('#sell-badge').className = 'sheet__badge' + (canSell ? '' : ' sheet__badge--warn');
+    $('#sell-details').innerHTML = rows.map(function (r) {
+      return '<div class="kv__row"><dt>' + escapeHtml(r[0]) + '</dt><dd>' + escapeHtml(r[1]) + '</dd></div>';
+    }).join('');
+    $('#sell-note').hidden = !note;
+    $('#sell-note').textContent = note;
+    $('#sell-boxes').textContent = sellBoxes;
+    $('#sell-qty-wrap').hidden = !med;
+    $('#sell-confirm').disabled = !canSell;
+  }
+
+  $('#sell-minus').addEventListener('click', function () {
+    if (sellBoxes > 1) { sellBoxes--; renderSellSheet(); }
+  });
+  $('#sell-plus').addEventListener('click', function () {
+    sellBoxes++; renderSellSheet();
+  });
+  $('#sell-cancel').addEventListener('click', resumeSelling);
+
+  $('#sell-confirm').addEventListener('click', function () {
+    if (!sellPending || !sellPending.medicine) return;
+    var account = Store.currentAccount();
+    var out = Store.recordSale(account.id, sellPending.medicine.name, sellBoxes);
+    if (!out.ok) { toast(out.message); return; }
+
+    sessionBoxes += out.sale.boxes;
+    sessionProfit += (out.sale.unitPrice - out.sale.unitCost) * out.sale.boxes;
+    $('#sell-run-boxes').textContent = sessionBoxes;
+    $('#sell-run-profit').textContent = money(sessionProfit);
+
+    resumeSelling();
+    toast('Sold ' + out.sale.boxes + ' × ' + out.sale.medicine + ' · profit ' +
+          money((out.sale.unitPrice - out.sale.unitCost) * out.sale.boxes));
+  });
+
+  function setSellFlash(on) {
+    sellFlashOn = on;
+    $('#sell-flash').setAttribute('aria-pressed', String(on));
+    $('#sell-flash-icon').innerHTML = '<use href="' + (on ? '#i-flash' : '#i-flash-off') + '"/>';
+    if (sellStream) {
+      var track = sellStream.getVideoTracks()[0];
+      var caps = track && track.getCapabilities ? track.getCapabilities() : null;
+      if (caps && caps.torch) track.applyConstraints({ advanced: [{ torch: on }] }).catch(function () {});
+    }
+  }
+
+  $('#sell-flash').addEventListener('click', function () {
+    if (!sellStream) { toast('Start the camera first'); return; }
+    var track = sellStream.getVideoTracks()[0];
+    var caps = track && track.getCapabilities ? track.getCapabilities() : null;
+    if (!caps || !caps.torch) { toast('This camera has no torch'); return; }
+    setSellFlash(!sellFlashOn);
+  });
+
+  /* ================================================================== *
+   * 10. Vendor sales and profit
+   * ================================================================== */
+  var salesPeriod = 'daily';
+
+  function renderVendorSales() {
+    var account = Store.currentAccount();
+    if (!account) return;
+    var st = Store.vendorStats(account.id, salesPeriod);
+
+    $('#vsales-sub').textContent = account.name + ' · profit from scanned boxes';
+    $('#vs-profit').textContent = money(st.profit);
+    $('#vs-trend').textContent = st.change === null
+      ? 'No comparable prior period'
+      : (st.change >= 0 ? '+' : '') + st.change.toFixed(1) + '% vs previous period';
+    $('#vs-note').textContent = new Date(st.rangeFrom).toLocaleDateString([], { day: 'numeric', month: 'short' }) +
+      ' – ' + new Date(st.rangeTo - 1).toLocaleDateString([], { day: 'numeric', month: 'short' });
+    $('#vs-boxes').textContent = st.boxes;
+    $('#vs-boxes-meta').textContent = st.count + (st.count === 1 ? ' scan' : ' scans');
+    $('#vs-revenue').textContent = money(st.revenue, 0);
+    $('#vs-revenue-meta').textContent = 'cost ' + money(st.cost, 0);
+
+    $('#vs-top').innerHTML = st.top.length ? st.top.map(function (t, i) {
+      return '<li class="rankrow">' +
+        '<span class="rankrow__no">' + (i + 1) + '</span>' +
+        '<div class="rankrow__body">' +
+          '<p class="rankrow__name">' + escapeHtml(t.name) + '</p>' +
+          '<p class="rankrow__meta">' + t.boxes + ' boxes · ' + money(t.revenue) + ' taken</p>' +
+        '</div>' +
+        '<span class="rankrow__margin">' + money(t.profit) + '</span>' +
+        '</li>';
+    }).join('') : '<li class="rankrow"><p class="rankrow__meta">Nothing sold in this period.</p></li>';
+
+    var recent = Store.recentSales(account.id, 6);
+    $('#vs-recent').innerHTML = recent.length ? recent.map(function (sale) {
+      return '<li class="activity__row">' +
+        '<span class="activity__icon"><svg class="icon"><use href="#i-barcode"/></svg></span>' +
+        '<span class="activity__body">' +
+          '<span class="activity__name">' + escapeHtml(sale.medicine) + '</span>' +
+          '<span class="activity__meta">' + sale.boxes + ' × ' + money(sale.unitPrice) + ' · ' + ago(sale.at) + '</span>' +
+        '</span>' +
+        '<span class="badge badge--green">' + money((sale.unitPrice - sale.unitCost) * sale.boxes) + '</span>' +
+        '</li>';
+    }).join('') : '<li class="activity__row"><span class="activity__meta">No scans yet.</span></li>';
+  }
+
+  $$('[data-speriod]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      $$('[data-speriod]').forEach(function (o) {
+        o.classList.toggle('is-on', o === b);
+        o.setAttribute('aria-selected', String(o === b));
+      });
+      salesPeriod = b.dataset.speriod;
+      moveSalesPill();
+      renderVendorSales();
+    });
+  });
+
+  /* ================================================================== *
+   * 11. Pricing (manager)
+   * ================================================================== */
+  var priceSheet = $('#price-sheet');
+  var priceForm = $('#price-form');
+  var pricingFor = null;
+
+  function openPriceSheet(name) {
+    var med = Store.findMedicine(name);
+    if (!med) return;
+    pricingFor = med;
+    hideToast();
+    $('#price-sheet-title').textContent = med.name;
+    priceForm.elements.price.value = med.price;
+    priceForm.elements.cost.value = med.cost;
+    $$('.field', priceForm).forEach(function (f) { f.classList.remove('is-bad'); });
+    updateMarginNote();
+
+    scrim.hidden = false;
+    requestAnimationFrame(function () { scrim.classList.add('is-on'); });
+    priceSheet.classList.add('is-open');
+    priceSheet.setAttribute('aria-hidden', 'false');
+  }
+
+  function closePriceSheet() {
+    scrim.classList.remove('is-on');
+    priceSheet.classList.remove('is-open');
+    priceSheet.setAttribute('aria-hidden', 'true');
+    setTimeout(function () { if (!anySheetOpen()) scrim.hidden = true; }, 300);
+    pricingFor = null;
+  }
+
+  function updateMarginNote() {
+    var p = Number(priceForm.elements.price.value);
+    var c = Number(priceForm.elements.cost.value);
+    if (!isFinite(p) || !isFinite(c) || p <= 0) { $('#price-margin').textContent = '—'; return; }
+    var margin = ((p - c) / p) * 100;
+    $('#price-margin').textContent = 'Margin ' + margin.toFixed(1) + '% · ' +
+      money(p - c) + ' profit per unit. Sales already recorded keep the price they were sold at.';
+  }
+
+  priceForm.addEventListener('input', function (event) {
+    var field = event.target.closest('.field');
+    if (field) field.classList.remove('is-bad');
+    updateMarginNote();
+  });
+
+  $('#price-cancel').addEventListener('click', closePriceSheet);
+
+  priceForm.addEventListener('submit', function (event) {
+    event.preventDefault();
+    if (!pricingFor) return;
+    var out = Store.setPricing(pricingFor.name,
+      priceForm.elements.price.value, priceForm.elements.cost.value);
+    if (!out.ok) {
+      markBad(/cost/i.test(out.message) ? priceForm.elements.cost : priceForm.elements.price, out.message);
+      return;
+    }
+    var name = out.medicine.name;
+    closePriceSheet();
+    renderStock();
+    toast(name + ' priced at ' + money(out.medicine.price) + ' / unit');
+  });
+
+  function anySheetOpen() {
+    return [stockSheet, itemSheet, vendorSheet, priceSheet].some(function (el) {
+      return el.classList.contains('is-open');
+    });
+  }
+
+  /* ================================================================== *
    * Boot
    * ================================================================== */
   segButtons.forEach(function (b) {
@@ -1273,13 +1922,27 @@
     b.setAttribute('aria-selected', String(b.dataset.period === activePeriod));
   });
 
+  /* Each screen's pill is positioned when that screen is shown; a resize
+     invalidates all three. */
+  window.addEventListener('resize', function () { moveVendPill(); moveSalesPill(); });
+
   if (!isNative) window.__pharmacheckBuild({ version: '1.0.0', channel: 'web', embedded: true });
 
   Store.load();
   setUpTypeAhead();
-  renderStock();
-  renderDashboard();
-  renderReports(activePeriod);
-  requestAnimationFrame(moveSegPill);
-  go('dashboard');
+  applyRole();
+
+  var signedIn = Store.currentAccount();
+  if (signedIn && signedIn.role === Store.MANAGER) {
+    renderStock();
+    renderDashboard();
+    renderReports(activePeriod);
+    requestAnimationFrame(moveSegPill);
+    go('dashboard');
+  } else if (signedIn) {
+    go('vhome');
+  } else {
+    renderSignIn();
+    go('signin');
+  }
 })();
