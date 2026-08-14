@@ -10,7 +10,8 @@
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/8c401998-60ad-475c-ac52-564545426886"
     },
     "runtimeVersion": {
       "policy": "appVersion"
@@ -51,6 +52,12 @@
           "imageWidth": 180
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8c401998-60ad-475c-ac52-564545426886"
+      }
+    },
+    "owner": "xp49"
   }
 }
