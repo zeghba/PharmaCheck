@@ -100,6 +100,32 @@ Settings, to join.
 `MANAGER_ONLY` in `src/index.js` is the single list of what a vendor cannot do.
 The role guard in the app's `go()` is a UI convenience; this is the boundary.
 
+## Admin API
+
+Everything under `/v1/admin/` is the surface the [admin app](../admin/README.md)
+talks to — creating pharmacies, managing their accounts, and setting the Turso
+credentials. It lives behind a different claim from the pharmacy API:
+
+| Route | Does |
+|---|---|
+| `POST /v1/admin/signin` | exchanges `SETUP_KEY` for an 8-hour admin session |
+| `GET /v1/admin/overview` | totals across every pharmacy, plus a row each |
+| `GET \| POST /v1/admin/pharmacies` | list, or create one with its first manager |
+| `GET \| DELETE /v1/admin/pharmacies/:code` | one pharmacy in full, or archive it |
+| `POST \| PATCH \| DELETE …/accounts[/:id]` | add, edit or remove a manager or vendor |
+| `GET \| PUT /v1/admin/config` | the Turso organisation, group and platform token |
+| `GET /v1/admin/config/test` | asks Turso whether those credentials actually work |
+
+An admin token carries `r: "admin"` and no pharmacy; a pharmacy token carries a
+pharmacy and a role. Neither can be edited into the other — the signature covers
+the claim — and each is refused by the other's routes. `test/admin.test.js`
+holds that boundary in place.
+
+`DELETE /v1/admin/pharmacies/:code` drops the pharmacy from the KV index and
+evicts it from the in-isolate cache, but **keeps its database** unless the body
+carries `{"dropDatabase": true}`. The records outlive the decision to stop using
+them; destroying them is a separate, explicit act.
+
 ## What the PIN is worth
 
 Four digits is ten thousand possibilities. PINs are stored as PBKDF2-SHA256

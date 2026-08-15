@@ -216,6 +216,35 @@ test('malformed tokens return null rather than throwing', async () => {
 });
 
 /* ------------------------------------------------------------------ *
+ * The admin boundary
+ *
+ * The whole super-admin surface rests on one claim. These check that a
+ * pharmacy token cannot acquire it and an admin token is distinguishable.
+ * ------------------------------------------------------------------ */
+test('a manager token does not carry the admin claim', async () => {
+  const { token } = await mintToken(SECRET, { p: 'central', a: 'mgr-1', r: 'manager' });
+  const claims = await readToken(SECRET, token);
+  assert.equal(claims.r, 'manager');
+  assert.notEqual(claims.r, 'admin');
+});
+
+test('an admin token is not scoped to a pharmacy', async () => {
+  const { token } = await mintToken(SECRET, { r: 'admin' });
+  const claims = await readToken(SECRET, token);
+  assert.equal(claims.r, 'admin');
+  assert.equal(claims.p, undefined, 'nothing ties an admin session to one pharmacy');
+});
+
+test('promoting a manager token to admin invalidates the signature', async () => {
+  const { token } = await mintToken(SECRET, { p: 'central', a: 'mgr-1', r: 'manager' });
+  const [payload, sig] = token.split('.');
+  const claims = JSON.parse(Buffer.from(payload, 'base64url').toString());
+  claims.r = 'admin';
+  const forged = Buffer.from(JSON.stringify(claims)).toString('base64url') + '.' + sig;
+  assert.equal(await readToken(SECRET, forged), null);
+});
+
+/* ------------------------------------------------------------------ *
  * Pharmacy codes
  * ------------------------------------------------------------------ */
 test('a pharmacy code is reduced to what Turso will accept as a name', () => {

@@ -92,6 +92,14 @@ export async function rememberPharmacy(env, code, entry) {
   await env.PHARMACIES.put('pharmacy:' + code, JSON.stringify(entry));
 }
 
+/* Archiving has to reach the memo as well as KV. Without this, an isolate
+   that had already resolved the pharmacy would keep serving it from
+   memory — devices would go on syncing to a pharmacy that was removed,
+   for as long as that isolate happened to live. */
+export function forgetPharmacy(code) {
+  memo.delete(code);
+}
+
 export function connect(entry) {
   return new Db(entry.hostname, entry.token);
 }

@@ -675,15 +675,15 @@
         <ul class="card activity" id="vs-recent"></ul>
       </section>
 
-      <!-- ===================== 9. SETTINGS ===================== -->
-      <section class="screen screen--scroll" id="screen-settings" aria-label="Settings">
+      <!-- ===================== 9. CONNECT ===================== -->
+      <section class="screen screen--scroll" id="screen-settings" aria-label="Connect">
         <header class="apphead apphead--compact">
           <button class="iconbtn iconbtn--ghost" type="button" id="set-back" aria-label="Back">
             <svg class="icon"><use href="#i-back"/></svg>
           </button>
           <div>
-            <h1 class="apphead__title apphead__title--sm">Settings</h1>
-            <p class="apphead__sub" id="set-sub">Where this pharmacy's data lives</p>
+            <h1 class="apphead__title apphead__title--sm">Connect</h1>
+            <p class="apphead__sub" id="set-sub">Which pharmacy this phone belongs to</p>
           </div>
         </header>
 
@@ -697,192 +697,47 @@
           <button class="btn btn--soft btn--sm" type="button" id="sync-now" hidden>Sync</button>
         </div>
 
-        <!-- Mode -->
-        <div class="section-head"><h2 class="section-title">Where the data lives</h2></div>
-        <div class="modelist" role="radiogroup" aria-label="Storage mode">
-          <button class="mode" type="button" role="radio" aria-checked="true" data-mode="off">
-            <span class="mode__icon"><svg class="icon"><use href="#i-cloud-off"/></svg></span>
-            <span class="mode__body">
-              <span class="mode__name">This phone only</span>
-              <span class="mode__note">Works with no signal. Nothing is shared with another device, and nothing is backed up.</span>
-            </span>
-            <span class="mode__tick"><svg class="icon icon--xs"><use href="#i-check"/></svg></span>
-          </button>
+        <div class="section-head"><h2 class="section-title">Pharmacy</h2></div>
+        <div class="card setform">
+          <p class="sheet__note sheet__note--info">
+            Your administrator gives you these two. Everything else — creating the
+            pharmacy, adding accounts, the database — is done in the admin app.
+          </p>
 
-          <button class="mode" type="button" role="radio" aria-checked="false" data-mode="worker">
-            <span class="mode__icon"><svg class="icon"><use href="#i-cloud"/></svg></span>
-            <span class="mode__body">
-              <span class="mode__name">Shared pharmacy <span class="mode__tag">recommended</span></span>
-              <span class="mode__note">Every phone sees the same stock. Prices are settled by the server, so a vendor's handset cannot rewrite what a box was worth.</span>
-            </span>
-            <span class="mode__tick"><svg class="icon icon--xs"><use href="#i-check"/></svg></span>
-          </button>
-
-          <button class="mode" type="button" role="radio" aria-checked="false" data-mode="direct">
-            <span class="mode__icon"><svg class="icon"><use href="#i-key"/></svg></span>
-            <span class="mode__body">
-              <span class="mode__name">Turso directly</span>
-              <span class="mode__note">A copy of this phone's data in your own database, with no Worker to deploy. No server means no price protection — use it on your own handset only.</span>
-            </span>
-            <span class="mode__tick"><svg class="icon icon--xs"><use href="#i-check"/></svg></span>
-          </button>
-        </div>
-
-        <!-- ---------------- Worker mode ---------------- -->
-        <div id="set-worker" hidden>
-          <div class="section-head"><h2 class="section-title">Connection</h2></div>
-          <div class="card setform">
-            <div class="field">
-              <label class="field__label" for="set-url">Worker URL</label>
-              <div class="field__control">
-                <svg class="icon field__icon"><use href="#i-cloud"/></svg>
-                <input id="set-url" type="url" inputmode="url" autocomplete="off" spellcheck="false"
-                       placeholder="https://pharmacheck-sync.you.workers.dev">
-              </div>
-              <p class="field__error" data-error-for="url"></p>
-              <p class="field__hint">Printed by <code>wrangler deploy</code>.</p>
+          <div class="field">
+            <label class="field__label" for="set-url">Server address</label>
+            <div class="field__control">
+              <svg class="icon field__icon"><use href="#i-cloud"/></svg>
+              <input id="set-url" type="url" inputmode="url" autocomplete="off" spellcheck="false"
+                     placeholder="https://pharmacheck-sync.example.workers.dev">
             </div>
-
-            <div class="field">
-              <label class="field__label" for="set-pharmacy">Pharmacy code</label>
-              <div class="field__control">
-                <svg class="icon field__icon"><use href="#i-hash"/></svg>
-                <input id="set-pharmacy" type="text" autocomplete="off" spellcheck="false" placeholder="central">
-              </div>
-              <p class="field__error" data-error-for="pharmacy"></p>
-              <p class="field__hint">The same code on every phone in this pharmacy.</p>
-            </div>
-
-            <div class="sheet__actions">
-              <button class="btn btn--ghost" type="button" id="set-test">Test</button>
-              <button class="btn btn--primary" type="button" id="set-save">Save &amp; connect</button>
-            </div>
-            <p class="setresult" id="set-result" hidden></p>
+            <p class="field__error" data-error-for="url"></p>
           </div>
 
-          <!-- Provisioning: manager only, and only needed once per pharmacy -->
-          <div id="set-provision-wrap">
-            <div class="section-head">
-              <h2 class="section-title">Set up a new pharmacy</h2>
-              <button class="linkbtn" type="button" id="set-provision-toggle">Open</button>
+          <div class="field">
+            <label class="field__label" for="set-pharmacy">Pharmacy code</label>
+            <div class="field__control">
+              <svg class="icon field__icon"><use href="#i-hash"/></svg>
+              <input id="set-pharmacy" type="text" autocomplete="off" spellcheck="false" placeholder="central">
             </div>
-            <div class="card setform" id="set-provision" hidden>
-              <p class="sheet__note sheet__note--info">
-                Creates a fresh Turso database for this pharmacy and writes the manager account.
-                Run this once, on your own phone.
-              </p>
-
-              <div class="field">
-                <label class="field__label" for="pv-key">Setup key</label>
-                <div class="field__control">
-                  <svg class="icon field__icon"><use href="#i-key"/></svg>
-                  <input id="pv-key" type="password" autocomplete="off" placeholder="the SETUP_KEY you chose">
-                </div>
-                <p class="field__hint">Held in memory for this one call and never saved to the phone.</p>
-              </div>
-
-              <div class="field">
-                <label class="field__label" for="pv-code">Pharmacy code</label>
-                <div class="field__control">
-                  <svg class="icon field__icon"><use href="#i-hash"/></svg>
-                  <input id="pv-code" type="text" autocomplete="off" spellcheck="false" placeholder="central">
-                </div>
-              </div>
-
-              <div class="field-row">
-                <div class="field">
-                  <label class="field__label" for="pv-name">Manager name</label>
-                  <div class="field__control">
-                    <input id="pv-name" type="text" autocomplete="off" placeholder="Sarah Kaur">
-                  </div>
-                </div>
-                <div class="field">
-                  <label class="field__label" for="pv-pin">Manager PIN</label>
-                  <div class="field__control">
-                    <input id="pv-pin" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
-                  </div>
-                </div>
-              </div>
-
-              <div class="sheet__actions">
-                <button class="btn btn--primary btn--block" type="button" id="pv-create">Create pharmacy</button>
-              </div>
-              <p class="setresult" id="pv-result" hidden></p>
-            </div>
+            <p class="field__error" data-error-for="pharmacy"></p>
           </div>
+
+          <div class="sheet__actions">
+            <button class="btn btn--ghost" type="button" id="set-test">Test</button>
+            <button class="btn btn--primary" type="button" id="set-save">Connect</button>
+          </div>
+          <p class="setresult" id="set-result" hidden></p>
         </div>
 
-        <!-- ---------------- Direct mode ---------------- -->
-        <div id="set-direct" hidden>
-          <div class="section-head"><h2 class="section-title">Turso database</h2></div>
-          <div class="card setform">
-            <p class="sheet__note sheet__note--warn">
-              This token is stored on this phone. Anyone holding it can read and rewrite
-              everything in the database, prices included — so put it on your own handset,
-              not on a vendor's.
-            </p>
-
-            <div class="field">
-              <label class="field__label" for="set-turso-url">Database URL</label>
-              <div class="field__control">
-                <svg class="icon field__icon"><use href="#i-cloud"/></svg>
-                <input id="set-turso-url" type="text" autocomplete="off" spellcheck="false"
-                       placeholder="libsql://pharmacy-you.turso.io">
-              </div>
-              <p class="field__hint"><code>turso db show &lt;name&gt; --url</code></p>
-            </div>
-
-            <div class="field">
-              <label class="field__label" for="set-turso-token">Auth token</label>
-              <div class="field__control">
-                <svg class="icon field__icon"><use href="#i-key"/></svg>
-                <input id="set-turso-token" type="password" autocomplete="off" spellcheck="false"
-                       placeholder="eyJhbGciOi…">
-              </div>
-              <p class="field__hint"><code>turso db tokens create &lt;name&gt;</code></p>
-            </div>
-
-            <div class="sheet__actions">
-              <button class="btn btn--ghost" type="button" id="set-turso-test">Test</button>
-              <button class="btn btn--primary" type="button" id="set-turso-save">Save &amp; back up</button>
-            </div>
-            <p class="setresult" id="set-turso-result" hidden></p>
-
-            <button class="btn btn--soft btn--block" type="button" id="set-turso-restore">
-              Replace this phone with the stored copy
-            </button>
-          </div>
+        <div class="section-head"><h2 class="section-title">Working offline</h2></div>
+        <div class="card wherelist">
+          <p class="offlinenote">
+            Connected, this phone still keeps its own copy — the counter works with no
+            signal and sales sync when it comes back. The first sign-in needs a
+            connection, because your PIN is checked by the server.
+          </p>
         </div>
-
-        <!-- ---------------- What goes where ---------------- -->
-        <div class="section-head"><h2 class="section-title">What goes where</h2></div>
-        <ul class="card wherelist">
-          <li class="where">
-            <span class="where__what">Worker URL, pharmacy code</span>
-            <span class="where__place where__place--ok">This phone</span>
-            <span class="where__why">An address and a name. Neither is a secret.</span>
-          </li>
-          <li class="where">
-            <span class="where__what">Setup key</span>
-            <span class="where__place where__place--warn">Typed, never stored</span>
-            <span class="where__why">Only needed to create a pharmacy.</span>
-          </li>
-          <li class="where">
-            <span class="where__what">Turso platform token</span>
-            <span class="where__place where__place--no">Worker only</span>
-            <span class="where__why">Can create and destroy every database you own. <code>wrangler secret put TURSO_PLATFORM_TOKEN</code>.</span>
-          </li>
-          <li class="where">
-            <span class="where__what">Session secret</span>
-            <span class="where__place where__place--no">Worker only</span>
-            <span class="where__why">Signs sign-in tokens. <code>wrangler secret put SESSION_SECRET</code>.</span>
-          </li>
-          <li class="where">
-            <span class="where__what">Database token</span>
-            <span class="where__place where__place--warn">Direct mode only</span>
-            <span class="where__why">Full read and write over one database.</span>
-          </li>
-        </ul>
 
         <button class="btn btn--danger btn--block" type="button" id="set-disconnect" hidden>
           Disconnect and keep local data

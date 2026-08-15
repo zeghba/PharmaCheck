@@ -6,7 +6,8 @@ numbers behind it all.
 
 Built as a self-contained front end — plain HTML, CSS and JavaScript, no build
 step and no dependencies. It runs entirely offline by default; connecting it to
-a shared database is opt-in, and set up from the app's own Settings tab.
+a shared database is opt-in, and set up by an administrator in the separate
+admin app.
 
 ## Running it
 
@@ -29,7 +30,7 @@ state pointing at manual entry.
 ## The screens
 
 Navigation is the bottom tab bar: **Dashboard**, **Prescriptions**,
-**Inventory**, **Vendors**, **Reports**, **Settings**. Manual Entry sits under
+**Inventory**, **Vendors**, **Reports**, **Connect**. Manual Entry sits under
 the Prescriptions tab and is reachable from the dashboard tile or the scanner's
 back button. Vendors get a shorter bar of their own: Stock, Sell, My Sales.
 
@@ -84,15 +85,29 @@ Still fixed:
 - The pharmacist identity in the header ("Welcome, Sarah") and the pharmacy
   name.
 
+## Two apps
+
+| | Who installs it | What it does |
+|---|---|---|
+| **PharmaCheck** (this project) | every phone on a shop floor | scanning, stock, sales, reports |
+| **[PharmaCheck Admin](admin/README.md)** (`admin/`) | whoever runs the estate | creates pharmacies, hands out accounts, holds the configuration |
+
+They are separate Expo projects with separate package ids and separate APKs. A
+phone at a counter never contains the admin app's code, and the pharmacy app has
+no screen that can create a database or reach another pharmacy.
+
+The pharmacy app's own configuration is therefore two fields on a **Connect**
+screen — a server address and a pharmacy code, both handed over by the
+administrator. Everything else that used to live there now lives in the admin
+app, next to the credentials it needs.
+
 ## Several phones, one pharmacy
 
-By default nothing leaves the handset. **Settings** offers two ways out of that,
-and the difference between them is who gets to decide what a box was worth.
+By default nothing leaves the handset. Connecting is opt-in, and the reason it
+is worth doing is that it decides who gets to say what a box was worth.
 
-### Shared pharmacy (recommended)
-
-A small Cloudflare Worker in [`worker/`](worker/README.md) — around 900 lines,
-no framework — plus one Turso database per pharmacy.
+A small Cloudflare Worker in [`worker/`](worker/README.md) — no framework —
+plus one Turso database per pharmacy.
 
 The app stays local-first: every screen still reads the copy on the device, so
 the counter works with no signal. What the Worker adds is agreement between
@@ -121,34 +136,24 @@ minutes after 8 wrong attempts. A 4-digit PIN is still only worth so much, which
 is why it is not the boundary — the session token is. See
 [worker/README.md](worker/README.md#what-the-pin-is-worth).
 
-Setup is three commands and a form: deploy the Worker, then fill in **Settings →
-Shared pharmacy** and press *Set up a new pharmacy*. Full steps in
-[worker/README.md](worker/README.md).
-
-### Turso directly
-
-Database URL and auth token typed straight into Settings, no Worker to deploy.
-The app mirrors its state into your own Turso database and can restore from it.
-
-There is no server in this mode, so there is no price protection: anything the
-device can read it can also rewrite. It is a backup and a second-manager-device
-story, not a way to hand a phone to someone whose pay depends on the numbers on
-it. Settings says so on the screen.
+Setup: deploy the Worker, then install the admin app, sign in with your setup
+key and create the pharmacy. Full steps in [worker/README.md](worker/README.md)
+and [admin/README.md](admin/README.md).
 
 ### What lives where
 
-The Settings screen ends with this table, because the whole design turns on it:
-
 | | Where | Why |
 |---|---|---|
-| Worker URL, pharmacy code | the phone | an address and a name, neither secret |
-| Setup key | typed, never stored | only needed to create a pharmacy |
-| Turso platform token | **the Worker only** | can create and destroy every database you own |
-| Session secret | **the Worker only** | signs sign-in tokens |
-| Database token | direct mode only | full read and write over one database |
+| Worker URL, pharmacy code | any phone | an address and a name, neither secret |
+| Setup key | the admin app, typed and never stored | exchanged for an 8-hour session |
+| Turso platform token | **the Worker** | can create and destroy every database you own |
+| Session secret | **the Worker**, via `wrangler secret put` | signs sign-in tokens |
 
-The platform token is never sent to a device and there is no field for it in the
-app. It goes in with `wrangler secret put`.
+The pharmacy app has no field for any credential at all. The platform token can
+be set either with `wrangler secret put` — where it never touches a phone — or
+from the admin app's Settings, where it crosses one handset once on its way to
+the Worker. A wrangler secret always wins, and the admin app says which of the
+two is in force.
 
 ### Offline
 
@@ -287,7 +292,10 @@ worker/                       the sync Worker — see worker/README.md
 worker/src/index.js           routes, and the role check that actually counts
 worker/src/turso.js           Turso Platform API; the only user of the token
 worker/src/hrana.js           libSQL over HTTP
-worker/test/worker.test.js    node --test, no network needed
+worker/src/admin.js           the super-admin API: pharmacies and accounts
+worker/test/*.test.js         node --test, no network needed
+
+admin/                        the super-admin app — see admin/README.md
 
 App.js                        native shell: WebView + status bar + back button
 index.js                      Expo entry point

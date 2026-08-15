@@ -22,6 +22,11 @@ import { hashPin, randomSalt, safeEqual, mintToken, readToken, SESSION_MS } from
 import { provision, resolvePharmacy, connect, normaliseCode } from './turso.js';
 import { DbError } from './hrana.js';
 import { TursoError } from './turso.js';
+import {
+  adminSignIn, listPharmacies, pharmacyDetail, overview,
+  createPharmacy, archivePharmacy, createAccount, updateAccount, removeAccount,
+  configStatus, putConfig, testTurso, resolveEnv
+} from './admin.js';
 
 const VERSION = '1.0.0';
 const MANAGER = 'manager';
@@ -459,16 +464,26 @@ async function applySeed(db, op) {
 /* ------------------------------------------------------------------ *
  * Routes
  * ------------------------------------------------------------------ */
+function bearer(request) {
+  return (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+}
+
 async function authed(env, request) {
-  var header = request.headers.get('authorization') || '';
-  var token = header.replace(/^Bearer\s+/i, '');
-  var claims = await readToken(env.SESSION_SECRET, token);
-  if (!claims) return null;
+  var claims = await readToken(env.SESSION_SECRET, bearer(request));
+  if (!claims || claims.r === 'admin') return null;
 
   var entry = await resolvePharmacy(env, claims.p);
   if (!entry) return null;
 
   return { claims: claims, entry: entry, db: connect(entry) };
+}
+
+/* An admin token is minted only from SETUP_KEY and carries role 'admin',
+   which no pharmacy sign-in can issue — so a manager's token, however it
+   was obtained, cannot reach anything below. */
+async function adminAuthed(env, request) {
+  var claims = await readToken(env.SESSION_SECRET, bearer(request));
+  return claims && claims.r === 'admin' ? claims : null;
 }
 
 async function handle(request, env) {
@@ -479,19 +494,121 @@ async function handle(request, env) {
 
   /* -------- health: what is configured, without leaking any of it ---- */
   if (path === '/v1/health' || path === '/') {
+    // Public, so this reports only whether each thing is set — never the
+    // organisation name, and never a credential.
+    var merged = await resolveEnv(env);
     return json({
       ok: true,
       service: 'pharmacheck-sync',
       version: VERSION,
       configured: {
-        platformToken: Boolean(env.TURSO_PLATFORM_TOKEN),
-        org: Boolean(env.TURSO_ORG),
-        group: env.TURSO_GROUP || 'default',
+        platformToken: Boolean(merged.TURSO_PLATFORM_TOKEN),
+        org: Boolean(merged.TURSO_ORG),
+        group: merged.TURSO_GROUP || 'default',
         sessionSecret: Boolean(env.SESSION_SECRET),
         setupKey: Boolean(env.SETUP_KEY),
         kv: Boolean(env.PHARMACIES)
       }
     });
+  }
+
+  /* ================================================================ *
+   * Admin API — the surface the super-admin app talks to
+   * ================================================================ */
+  if (path === '/v1/admin/signin' && request.method === 'POST') {
+    var creds0 = await request.json().catch(function () { return {}; });
+    var out0 = await adminSignIn(env, creds0.setupKey);
+    if (!out0.ok) return fail(out0.message, out0.status || 401);
+    return json({ ok: true, token: out0.token, expiresAt: out0.expiresAt });
+  }
+
+  if (path.indexOf('/v1/admin/') === 0) {
+    if (!await adminAuthed(env, request)) return fail('Sign in to the admin app again', 401);
+
+    var rest = path.slice('/v1/admin/'.length).split('/').filter(Boolean);
+    var body0 = ['POST', 'PUT', 'PATCH', 'DELETE'].indexOf(request.method) !== -1
+      ? await request.json().catch(function () { return {}; })
+      : {};
+
+    // /v1/admin/overview
+    if (rest[0] === 'overview' && request.method === 'GET') {
+      return json(Object.assign({ ok: true }, await overview(env)));
+    }
+
+    // /v1/admin/config/test — do those credentials actually work?
+    // Checked before the bare /config routes, which would swallow it.
+    if (rest[0] === 'config' && rest[1] === 'test') {
+      return json(await testTurso(env));
+    }
+
+    // /v1/admin/config — the Turso credentials, settable from the app
+    if (rest[0] === 'config' && !rest[1]) {
+      if (request.method === 'GET') {
+        return json({ ok: true, config: await configStatus(env) });
+      }
+      if (request.method === 'PUT' || request.method === 'POST') {
+        return json(await putConfig(env, body0));
+      }
+    }
+
+    if (rest[0] === 'pharmacies') {
+      var code0 = rest[1] ? normaliseCode(rest[1]) : null;
+
+      // /v1/admin/pharmacies
+      if (!code0) {
+        if (request.method === 'GET') {
+          return json({ ok: true, pharmacies: await listPharmacies(env) });
+        }
+        if (request.method === 'POST') {
+          // Credentials may come from wrangler secrets or from the admin
+          // app's Settings screen; provisioning reads the merge of both.
+          var provEnv = await resolveEnv(env);
+          if (!provEnv.TURSO_PLATFORM_TOKEN || !provEnv.TURSO_ORG) {
+            return fail('No Turso credentials yet — set them in the admin app’s Settings, or with wrangler secret put', 503);
+          }
+          var made0 = await createPharmacy(provEnv, body0);
+          if (!made0.ok) return fail(made0.message, made0.status || 400);
+          return json(made0);
+        }
+      }
+
+      // /v1/admin/pharmacies/:code
+      if (code0 && !rest[2]) {
+        if (request.method === 'GET') {
+          var detail0 = await pharmacyDetail(env, code0);
+          if (!detail0) return fail('No pharmacy with that code', 404);
+          return json(Object.assign({ ok: true }, detail0));
+        }
+        if (request.method === 'DELETE') {
+          var gone0 = await archivePharmacy(await resolveEnv(env), code0, body0.dropDatabase === true);
+          if (!gone0.ok) return fail(gone0.message, gone0.status || 400);
+          return json(gone0);
+        }
+      }
+
+      // /v1/admin/pharmacies/:code/accounts[/:id]
+      if (code0 && rest[2] === 'accounts') {
+        var accountId0 = rest[3] ? decodeURIComponent(rest[3]) : null;
+
+        if (!accountId0 && request.method === 'POST') {
+          var new0 = await createAccount(env, code0, body0);
+          if (!new0.ok) return fail(new0.message, new0.status || 400);
+          return json(new0);
+        }
+        if (accountId0 && request.method === 'PATCH') {
+          var upd0 = await updateAccount(env, code0, accountId0, body0);
+          if (!upd0.ok) return fail(upd0.message, upd0.status || 400);
+          return json(upd0);
+        }
+        if (accountId0 && request.method === 'DELETE') {
+          var del0 = await removeAccount(env, code0, accountId0);
+          if (!del0.ok) return fail(del0.message, del0.status || 400);
+          return json(del0);
+        }
+      }
+    }
+
+    return fail('No admin route for ' + request.method + ' ' + path, 404);
   }
 
   /* -------- provision a pharmacy ------------------------------------ */
@@ -500,8 +617,9 @@ async function handle(request, env) {
     if (!safeEqual(request.headers.get('x-setup-key') || '', env.SETUP_KEY)) {
       return fail('Wrong setup key', 401);
     }
-    if (!env.TURSO_PLATFORM_TOKEN || !env.TURSO_ORG) {
-      return fail('This Worker has no Turso credentials — set TURSO_PLATFORM_TOKEN and TURSO_ORG', 503);
+    var legacyEnv = await resolveEnv(env);
+    if (!legacyEnv.TURSO_PLATFORM_TOKEN || !legacyEnv.TURSO_ORG) {
+      return fail('No Turso credentials yet — set them in the admin app’s Settings, or with wrangler secret put', 503);
     }
 
     var body = await request.json().catch(function () { return {}; });
@@ -509,7 +627,7 @@ async function handle(request, env) {
     if (!code) return fail('Pharmacy code must be at least 3 letters, digits or dashes');
     if (!/^\d{4}$/.test(String(body.managerPin || ''))) return fail('Manager PIN must be 4 digits');
 
-    var made = await provision(env, code);
+    var made = await provision(legacyEnv, code);
     var db = connect(made.entry);
 
     var managerId = String(body.managerId || 'acc-1');

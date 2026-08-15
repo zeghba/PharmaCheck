@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B2A4A">
+<meta name="description" content="PharmaCheck Admin — provision pharmacies and manage their accounts.">
+<title>PharmaCheck Admin</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230B2A4A'/><path d='M10 9h8a5 5 0 0 1 0 10h-4v5h-4z' fill='white'/></svg>">
+<link rel="stylesheet" href="css/styles.css">
+<script>
+  /* The native shell sets this before any document script runs, so the mock
+     status bar can be dropped before first paint. */
+  if (window.__PHARMACHECK_NATIVE__) document.documentElement.classList.add('is-native');
+</script>
+</head>
+<body>
+
+<!-- ============================ ICON SPRITE ============================ -->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></symbol>
+  <symbol id="i-shop" viewBox="0 0 24 24"><path d="M4 9h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V9Z"/><path d="M3.5 9 5 4h14l1.5 5"/><path d="M9.5 21v-6h5v6"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4"/><path d="M2.6 20a6.4 6.4 0 0 1 12.8 0"/><path d="M16.5 5.2a3.4 3.4 0 0 1 0 6.6M17.5 14.4a6.4 6.4 0 0 1 3.9 5.6"/></symbol>
+  <symbol id="i-cog" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4"/><path d="m10.4 12.6 8.1-8.1M16 7l2.5 2.5M13.5 9.5 16 12"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H7a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.9 9.2a4.4 4.4 0 0 1-.4 9.8Z"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7.5" ry="3"/><path d="M4.5 5.5v13c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3v-13"/><path d="M4.5 12c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 3.8 2.6 20h18.8L12 3.8Z"/><path d="M12 10v4.2M12 17.2v.2"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M15 17v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v2"/><path d="M10 12h11m-3-3 3 3-3 3"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2"/><path d="M6.5 7 7.4 20a1 1 0 0 0 1 .9h7.2a1 1 0 0 0 1-.9L17.5 7"/></symbol>
+  <symbol id="i-pen" viewBox="0 0 24 24"><path d="M4 20h4L20 8a2.8 2.8 0 0 0-4-4L4 16v4Z"/><path d="m14.5 5.5 4 4"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M20.5 4.5V10h-5.5"/></symbol>
+</svg>
+
+<div class="stage">
+  <div class="phone" id="phone">
+
+    <!-- Simulated status bar; hidden inside the native shell -->
+    <div class="statusbar" aria-hidden="true">
+      <span class="sb-time" id="sb-time">9:41</span>
+      <span class="sb-right">
+        <svg viewBox="0 0 20 12" class="sb-signal"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="4.5" y="5.5" width="3" height="6.5" rx="1"/><rect x="9" y="3" width="3" height="9" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1"/></svg>
+        <svg viewBox="0 0 26 12" class="sb-batt"><rect x="0.6" y="0.6" width="21" height="10.8" rx="3.2" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".45"/><rect x="2.4" y="2.4" width="15" height="7.2" rx="2"/><path d="M23.4 4.2v3.6a2.2 2.2 0 0 0 0-3.6Z" opacity=".45"/></svg>
+      </span>
+    </div>
+
+    <main class="viewport" id="viewport">
+
+      <!-- ===================== 0. SIGN IN ===================== -->
+      <section class="screen screen--scroll is-active" id="screen-signin" aria-label="Sign in">
+        <div class="signin">
+          <div class="signin__brand">
+            <svg viewBox="0 0 100 100" class="signin__mark" aria-hidden="true">
+              <path d="M26 18h27a17.5 17.5 0 0 1 0 35H40v29H26z" fill="currentColor"/>
+              <g stroke="currentColor" stroke-width="10" stroke-linecap="round">
+                <line x1="52" y1="55" x2="80" y2="85"/><line x1="52" y1="85" x2="80" y2="55"/>
+              </g>
+            </svg>
+            <h1 class="signin__title">PharmaCheck</h1>
+            <p class="signin__role">Super Admin</p>
+          </div>
+
+          <div class="card setform">
+            <div class="field">
+              <label class="field__label" for="si-url">Worker URL</label>
+              <div class="field__control">
+                <svg class="icon field__icon"><use href="#i-cloud"/></svg>
+                <input id="si-url" type="url" inputmode="url" autocomplete="off" spellcheck="false"
+                       placeholder="https://pharmacheck-sync.you.workers.dev">
+              </div>
+              <p class="field__hint">The address <code>wrangler deploy</code> printed.</p>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="si-key">Setup key</label>
+              <div class="field__control">
+                <svg class="icon field__icon"><use href="#i-key"/></svg>
+                <input id="si-key" type="password" autocomplete="off" placeholder="your SETUP_KEY">
+              </div>
+              <p class="field__hint">Never saved on this phone. It is exchanged for a session that lasts 8 hours.</p>
+            </div>
+
+            <button class="btn btn--primary btn--block" type="button" id="si-go">Sign in</button>
+            <p class="setresult" id="si-result" hidden></p>
+          </div>
+
+          <p class="signin__foot" id="si-foot">Not set up yet? Deploy the Worker first — see <code>worker/README.md</code>.</p>
+        </div>
+      </section>
+
+      <!-- ===================== 1. DASHBOARD ===================== -->
+      <section class="screen screen--scroll" id="screen-dashboard" aria-label="Dashboard">
+        <header class="apphead">
+          <div>
+            <p class="apphead__date" id="dash-date">—</p>
+            <h1 class="apphead__title">Overview</h1>
+            <p class="apphead__sub" id="dash-sub">—</p>
+          </div>
+          <div class="apphead__actions">
+            <button class="iconbtn iconbtn--ghost" type="button" id="dash-refresh" aria-label="Refresh">
+              <svg class="icon"><use href="#i-refresh"/></svg>
+            </button>
+          </div>
+        </header>
+
+        <div class="statgrid">
+          <div class="card stat">
+            <p class="stat__label">Pharmacies</p>
+            <p class="stat__value" id="ov-pharmacies">—</p>
+          </div>
+          <div class="card stat">
+            <p class="stat__label">Accounts</p>
+            <p class="stat__value" id="ov-accounts">—</p>
+            <p class="stat__meta" id="ov-vendors">—</p>
+          </div>
+          <div class="card stat">
+            <p class="stat__label">Medicines</p>
+            <p class="stat__value" id="ov-medicines">—</p>
+          </div>
+          <div class="card stat">
+            <p class="stat__label">Sales logged</p>
+            <p class="stat__value" id="ov-sales">—</p>
+            <p class="stat__meta" id="ov-revenue">—</p>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2 class="section-title">Pharmacies</h2>
+          <button class="linkbtn" type="button" data-go="pharmacies">Manage <svg class="icon icon--xs"><use href="#i-chevron"/></svg></button>
+        </div>
+        <ul class="cardlist" id="ov-list"></ul>
+      </section>
+
+      <!-- ===================== 2. PHARMACIES ===================== -->
+      <section class="screen screen--fixed" id="screen-pharmacies" aria-label="Pharmacies">
+        <header class="apphead apphead--compact">
+          <div>
+            <h1 class="apphead__title apphead__title--sm">Pharmacies</h1>
+            <p class="apphead__sub" id="ph-sub">—</p>
+          </div>
+        </header>
+
+        <div class="searchbar">
+          <svg class="icon searchbar__icon"><use href="#i-search"/></svg>
+          <input id="ph-search" type="search" placeholder="Search by code" autocomplete="off">
+        </div>
+
+        <ul class="cardlist cardlist--scroll" id="ph-list"></ul>
+
+        <button class="fab fab--wide" type="button" id="ph-add">
+          <svg class="icon"><use href="#i-plus"/></svg> New pharmacy
+        </button>
+      </section>
+
+      <!-- ===================== 3. PHARMACY DETAIL ===================== -->
+      <section class="screen screen--scroll" id="screen-detail" aria-label="Pharmacy">
+        <header class="apphead apphead--compact">
+          <button class="iconbtn iconbtn--ghost" type="button" data-go="pharmacies" aria-label="Back">
+            <svg class="icon"><use href="#i-back"/></svg>
+          </button>
+          <div>
+            <h1 class="apphead__title apphead__title--sm" id="dt-code">—</h1>
+            <p class="apphead__sub" id="dt-sub">—</p>
+          </div>
+        </header>
+
+        <div class="card dbcard">
+          <svg class="icon dbcard__icon"><use href="#i-db"/></svg>
+          <div class="dbcard__body">
+            <p class="dbcard__name" id="dt-db">—</p>
+            <p class="dbcard__meta" id="dt-created">—</p>
+          </div>
+        </div>
+
+        <div class="statgrid statgrid--tight">
+          <div class="card stat">
+            <p class="stat__label">Medicines</p>
+            <p class="stat__value" id="dt-medicines">—</p>
+            <p class="stat__meta" id="dt-units">—</p>
+          </div>
+          <div class="card stat">
+            <p class="stat__label">Sales</p>
+            <p class="stat__value" id="dt-sales">—</p>
+            <p class="stat__meta" id="dt-revenue">—</p>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2 class="section-title">Manager</h2>
+          <button class="linkbtn" type="button" data-add-role="manager">Add</button>
+        </div>
+        <ul class="cardlist" id="dt-managers"></ul>
+
+        <div class="section-head">
+          <h2 class="section-title">Vendors</h2>
+          <button class="linkbtn" type="button" data-add-role="vendor">Add</button>
+        </div>
+        <ul class="cardlist" id="dt-vendors"></ul>
+
+        <div class="section-head"><h2 class="section-title">Set up a phone</h2></div>
+        <div class="card connectcard">
+          <p class="connectcard__note">Enter these two on the phone, in the pharmacy app's Connect screen.</p>
+          <dl class="kv">
+            <div class="kv__row"><dt>Worker URL</dt><dd id="dt-url">—</dd></div>
+            <div class="kv__row"><dt>Pharmacy code</dt><dd id="dt-copycode">—</dd></div>
+          </dl>
+        </div>
+
+        <button class="btn btn--danger btn--block" type="button" id="dt-archive">Archive this pharmacy</button>
+      </section>
+
+      <!-- ===================== 4. SETTINGS ===================== -->
+      <section class="screen screen--scroll" id="screen-settings" aria-label="Settings">
+        <header class="apphead apphead--compact">
+          <div>
+            <h1 class="apphead__title apphead__title--sm">Settings</h1>
+            <p class="apphead__sub">What this admin app is connected to</p>
+          </div>
+        </header>
+
+        <!-- Step 1 -->
+        <div class="steprow"><span class="stepnum">1</span><h2 class="section-title">The Worker</h2></div>
+        <div class="card setform">
+          <div class="field">
+            <label class="field__label" for="st-url">Worker URL</label>
+            <div class="field__control">
+              <svg class="icon field__icon"><use href="#i-cloud"/></svg>
+              <input id="st-url" type="url" inputmode="url" autocomplete="off" spellcheck="false"
+                     placeholder="https://pharmacheck-sync.you.workers.dev">
+            </div>
+          </div>
+          <div class="sheet__actions">
+            <button class="btn btn--ghost" type="button" id="st-check">Check</button>
+            <button class="btn btn--primary" type="button" id="st-save-url">Save</button>
+          </div>
+          <p class="setresult" id="st-url-result" hidden></p>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="steprow"><span class="stepnum">2</span><h2 class="section-title">Turso database</h2></div>
+        <div class="card setform">
+          <p class="sheet__note sheet__note--info" id="st-source">—</p>
+
+          <div class="field">
+            <label class="field__label" for="st-org">Organisation</label>
+            <div class="field__control">
+              <svg class="icon field__icon"><use href="#i-db"/></svg>
+              <input id="st-org" type="text" autocomplete="off" spellcheck="false" placeholder="your-org">
+            </div>
+            <p class="field__hint">From your Turso dashboard URL, or <code>turso org list</code>.</p>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="st-group">Group</label>
+            <div class="field__control">
+              <svg class="icon field__icon"><use href="#i-db"/></svg>
+              <input id="st-group" type="text" autocomplete="off" spellcheck="false" placeholder="default">
+            </div>
+            <p class="field__hint">Where new pharmacy databases are created. It must already exist.</p>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="st-token">Platform token</label>
+            <div class="field__control">
+              <svg class="icon field__icon"><use href="#i-key"/></svg>
+              <input id="st-token" type="password" autocomplete="off" spellcheck="false" placeholder="leave blank to keep the current one">
+            </div>
+            <p class="field__hint"><code>turso auth api-tokens mint pharmacheck</code></p>
+          </div>
+
+          <p class="sheet__note sheet__note--warn">
+            This token can create and destroy every database you own. Saved here it is
+            kept by the Worker, not by this phone — but it does cross this handset once.
+            <code>wrangler secret put TURSO_PLATFORM_TOKEN</code> avoids that, and takes priority.
+          </p>
+
+          <div class="sheet__actions">
+            <button class="btn btn--ghost" type="button" id="st-test">Test</button>
+            <button class="btn btn--primary" type="button" id="st-save-turso">Save</button>
+          </div>
+          <p class="setresult" id="st-turso-result" hidden></p>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="steprow"><span class="stepnum">3</span><h2 class="section-title">Worker secrets</h2></div>
+        <ul class="card checklist" id="st-checklist"></ul>
+
+        <button class="btn btn--danger btn--block" type="button" id="st-signout">
+          <svg class="icon icon--xs"><use href="#i-logout"/></svg> Sign out
+        </button>
+      </section>
+
+    </main>
+
+    <!-- ============================ TAB BAR ============================ -->
+    <nav class="tabbar" id="tabs" aria-label="Primary" hidden>
+      <button class="tab is-on" type="button" data-go="dashboard" aria-current="page">
+        <svg class="icon"><use href="#i-grid"/></svg><span>Overview</span>
+      </button>
+      <button class="tab" type="button" data-go="pharmacies">
+        <svg class="icon"><use href="#i-shop"/></svg><span>Pharmacies</span>
+      </button>
+      <button class="tab" type="button" data-go="settings">
+        <svg class="icon"><use href="#i-cog"/></svg><span>Settings</span>
+      </button>
+    </nav>
+
+    <div class="homebar" aria-hidden="true"></div>
+
+    <!-- ===================== NEW PHARMACY SHEET ===================== -->
+    <div class="scrim" id="scrim" hidden></div>
+    <div class="sheet sheet--modal sheet--tall" id="new-sheet" aria-hidden="true" role="dialog" aria-label="New pharmacy">
+      <div class="sheet__grab"></div>
+      <h2 class="sheet__title">New pharmacy</h2>
+      <form id="new-form" novalidate>
+        <div class="sheetscroll">
+          <div class="field">
+            <label class="field__label" for="np-code">Pharmacy code</label>
+            <div class="field__control">
+              <input id="np-code" name="code" type="text" autocomplete="off" spellcheck="false" placeholder="central">
+            </div>
+            <p class="field__error" data-error-for="code"></p>
+            <p class="field__hint">Lowercase letters, digits and dashes. Each phone types this once.</p>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="np-label">Display name <span class="field__opt">optional</span></label>
+            <div class="field__control">
+              <input id="np-label" name="label" type="text" autocomplete="off" placeholder="Pharmacie Centrale, Alger">
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="np-manager">Manager name</label>
+            <div class="field__control">
+              <svg class="icon field__icon"><use href="#i-users"/></svg>
+              <input id="np-manager" name="managerName" type="text" autocomplete="off" placeholder="Sarah Kaur">
+            </div>
+            <p class="field__error" data-error-for="managerName"></p>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="np-pin">Manager PIN</label>
+            <div class="field__control">
+              <input id="np-pin" name="managerPin" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="4 digits">
+            </div>
+            <p class="field__error" data-error-for="managerPin"></p>
+            <p class="field__hint">Give this to the manager. They can change it later.</p>
+          </div>
+
+          <p class="sheet__note sheet__note--info">
+            Creates a Turso database for this pharmacy and writes the manager account.
+            It takes a few seconds.
+          </p>
+          <p class="setresult" id="np-result" hidden></p>
+        </div>
+
+        <div class="sheet__actions">
+          <button class="btn btn--ghost" type="button" id="np-cancel">Cancel</button>
+          <button class="btn btn--primary" type="submit" id="np-save">Create</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ===================== ACCOUNT SHEET ===================== -->
+    <div class="sheet sheet--modal" id="acct-sheet" aria-hidden="true" role="dialog" aria-label="Account">
+      <div class="sheet__grab"></div>
+      <h2 class="sheet__title" id="ac-title">Add vendor</h2>
+      <form id="acct-form" novalidate>
+        <div class="field">
+          <label class="field__label" for="ac-name">Name</label>
+          <div class="field__control">
+            <svg class="icon field__icon"><use href="#i-users"/></svg>
+            <input id="ac-name" name="name" type="text" autocomplete="off" placeholder="Karim Toumi">
+          </div>
+          <p class="field__error" data-error-for="name"></p>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="ac-pin"><span id="ac-pin-label">4-digit PIN</span></label>
+          <div class="field__control">
+            <input id="ac-pin" name="pin" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
+          </div>
+          <p class="field__error" data-error-for="pin"></p>
+        </div>
+
+        <label class="switchrow" id="ac-active-row">
+          <span class="switchrow__label">Can sign in</span>
+          <input id="ac-active" type="checkbox" checked>
+          <span class="switchrow__track"><span class="switchrow__knob"></span></span>
+        </label>
+
+        <p class="setresult" id="ac-result" hidden></p>
+
+        <div class="sheet__actions">
+          <button class="btn btn--ghost" type="button" id="ac-cancel">Cancel</button>
+          <button class="btn btn--primary" type="submit" id="ac-save">Save</button>
+        </div>
+        <button class="btn btn--danger btn--block" type="button" id="ac-remove" hidden>Remove this account</button>
+      </form>
+    </div>
+
+    <!-- ===================== CONFIRM SHEET ===================== -->
+    <div class="sheet sheet--modal" id="confirm-sheet" aria-hidden="true" role="dialog" aria-label="Confirm">
+      <div class="sheet__grab"></div>
+      <h2 class="sheet__title" id="cf-title">Are you sure?</h2>
+      <p class="sheet__note sheet__note--warn" id="cf-body">—</p>
+
+      <label class="switchrow" id="cf-drop-row">
+        <span class="switchrow__label">Also delete the database and all its records</span>
+        <input id="cf-drop" type="checkbox">
+        <span class="switchrow__track"><span class="switchrow__knob"></span></span>
+      </label>
+
+      <div class="field" id="cf-typebox">
+        <label class="field__label" for="cf-type">Type the pharmacy code to confirm</label>
+        <div class="field__control">
+          <input id="cf-type" type="text" autocomplete="off" spellcheck="false" placeholder="">
+        </div>
+      </div>
+
+      <p class="setresult" id="cf-result" hidden></p>
+
+      <div class="sheet__actions">
+        <button class="btn btn--ghost" type="button" id="cf-cancel">Cancel</button>
+        <button class="btn btn--danger btn--solid" type="button" id="cf-go">Archive</button>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -2014,74 +2014,6 @@ html.role-vendor .pricerow { display: none; }
 
 .btn--sm { padding: 8px 14px; font-size: 12.5px; border-radius: 11px; }
 
-/* ------------------------------------------------------------ modes */
-.modelist { display: flex; flex-direction: column; gap: 9px; }
-
-.mode {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  width: 100%;
-  text-align: left;
-  padding: 14px;
-  border: 1.5px solid var(--line);
-  border-radius: 16px;
-  background: #fff;
-  cursor: pointer;
-  transition: border-color .16s ease, background .16s ease, transform .12s ease;
-}
-.mode:active { transform: scale(.99); }
-.mode[aria-checked="true"] { border-color: var(--blue-500); background: #F7FBFF; }
-
-.mode__icon {
-  flex: none;
-  width: 36px;
-  height: 36px;
-  border-radius: 11px;
-  display: grid;
-  place-items: center;
-  background: var(--blue-100);
-  color: var(--blue-700);
-}
-.mode[aria-checked="true"] .mode__icon {
-  background: linear-gradient(155deg, #4A9BF7, var(--blue-700));
-  color: #fff;
-}
-
-.mode__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.mode__name { font-size: 14.5px; font-weight: 700; letter-spacing: -.2px; }
-.mode__note { font-size: 11.5px; font-weight: 540; color: var(--muted); line-height: 1.45; }
-
-.mode__tag {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: var(--green-bg);
-  color: var(--green-2);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: .2px;
-  text-transform: uppercase;
-  vertical-align: 1.5px;
-}
-
-.mode__tick {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  border: 1.5px solid var(--line);
-  color: transparent;
-}
-.mode[aria-checked="true"] .mode__tick {
-  background: var(--blue-500);
-  border-color: var(--blue-500);
-  color: #fff;
-}
-
 /* ------------------------------------------------------------ forms */
 .setform { display: flex; flex-direction: column; gap: 14px; }
 .setform .sheet__actions { margin-top: 2px; }
@@ -2093,8 +2025,7 @@ html.role-vendor .pricerow { display: none; }
   margin-top: 5px;
   line-height: 1.45;
 }
-.field__hint code,
-.where__why code {
+.field__hint code {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 10.5px;
   background: var(--blue-100);
@@ -2121,38 +2052,11 @@ html.role-vendor .pricerow { display: none; }
   margin-bottom: 0;
 }
 
-/* -------------------------------------------------- what goes where */
-.wherelist { display: flex; flex-direction: column; gap: 0; }
-
-.where {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 3px 10px;
-  padding: 13px 0;
-  border-bottom: 1px solid var(--line);
-}
-.where:last-child { border-bottom: 0; padding-bottom: 2px; }
-.where:first-child { padding-top: 2px; }
-
-.where__what { font-size: 13px; font-weight: 660; letter-spacing: -.1px; }
-.where__why {
-  grid-column: 1 / -1;
-  font-size: 11.5px;
-  font-weight: 540;
+/* A quiet explanatory card rather than a table of secrets — the
+   secrets, and the screen that explains them, live in the admin app. */
+.offlinenote {
+  font-size: 12px;
+  font-weight: 560;
   color: var(--muted);
-  line-height: 1.5;
+  line-height: 1.6;
 }
-
-.where__place {
-  align-self: start;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .2px;
-  text-transform: uppercase;
-  padding: 3px 8px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-.where__place--ok   { background: var(--green-bg); color: var(--green-2); }
-.where__place--warn { background: var(--amber-bg); color: var(--amber); }
-.where__place--no   { background: var(--red-bg);   color: var(--red); }
