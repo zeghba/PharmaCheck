@@ -5,7 +5,8 @@ generate prescription codes by hand, track medicine stock, and read the profit
 numbers behind it all.
 
 Built as a self-contained front end — plain HTML, CSS and JavaScript, no build
-step, no dependencies, no network calls.
+step and no dependencies. It runs entirely offline by default; connecting it to
+a shared database is opt-in, and set up from the app's own Settings tab.
 
 ## Running it
 
@@ -25,11 +26,12 @@ The camera on the scanner screen needs `https://` or `localhost`. Over
 `file://` the browser blocks it and the scanner shows a camera-unavailable
 state pointing at manual entry.
 
-## The five screens
+## The screens
 
 Navigation is the bottom tab bar: **Dashboard**, **Prescriptions**,
-**Inventory**, **Reports**. Manual Entry sits under the Prescriptions tab and is
-reachable from the dashboard tile or the scanner's back button.
+**Inventory**, **Vendors**, **Reports**, **Settings**. Manual Entry sits under
+the Prescriptions tab and is reachable from the dashboard tile or the scanner's
+back button. Vendors get a shorter bar of their own: Stock, Sell, My Sales.
 
 1. **Dashboard** — greeting, three square action tiles (Scan Prescription,
    Inventory, Manual Entry), a Today's Summary block of metric cards, and recent
@@ -80,7 +82,80 @@ Seeded, not mocked:
 Still fixed:
 
 - The pharmacist identity in the header ("Welcome, Sarah") and the pharmacy
-  name. There is no account system.
+  name.
+
+## Several phones, one pharmacy
+
+By default nothing leaves the handset. **Settings** offers two ways out of that,
+and the difference between them is who gets to decide what a box was worth.
+
+### Shared pharmacy (recommended)
+
+A small Cloudflare Worker in [`worker/`](worker/README.md) — around 900 lines,
+no framework — plus one Turso database per pharmacy.
+
+The app stays local-first: every screen still reads the copy on the device, so
+the counter works with no signal. What the Worker adds is agreement between
+devices, and one thing a phone cannot be trusted with.
+
+That thing is pricing. Turso scopes database tokens by table and action, not by
+column. A token that lets a vendor decrement `qty` to record a sale is
+necessarily a token that lets them rewrite `price` and `cost` — the two numbers
+their pay is calculated from. So vendors hold no write path to the database at
+all: sales go to the Worker, which reads the price out of its own row and
+ignores whatever the device claimed.
+
+| | Reads | Writes |
+|---|---|---|
+| Manager | local copy, synced | through the Worker, all operations |
+| Vendor | local copy, synced | through the Worker, sales only |
+
+Mutations queue in an outbox and drain when there is a connection, so a sale
+made with no signal is recorded and syncs later rather than being refused. Every
+queued operation carries a client-generated id, so replaying the outbox after a
+dropped connection cannot bill the same box twice.
+
+PINs stop being plaintext in this mode: they are stored as PBKDF2-SHA256 with a
+per-account salt and checked server-side, and sign-in locks an account for 15
+minutes after 8 wrong attempts. A 4-digit PIN is still only worth so much, which
+is why it is not the boundary — the session token is. See
+[worker/README.md](worker/README.md#what-the-pin-is-worth).
+
+Setup is three commands and a form: deploy the Worker, then fill in **Settings →
+Shared pharmacy** and press *Set up a new pharmacy*. Full steps in
+[worker/README.md](worker/README.md).
+
+### Turso directly
+
+Database URL and auth token typed straight into Settings, no Worker to deploy.
+The app mirrors its state into your own Turso database and can restore from it.
+
+There is no server in this mode, so there is no price protection: anything the
+device can read it can also rewrite. It is a backup and a second-manager-device
+story, not a way to hand a phone to someone whose pay depends on the numbers on
+it. Settings says so on the screen.
+
+### What lives where
+
+The Settings screen ends with this table, because the whole design turns on it:
+
+| | Where | Why |
+|---|---|---|
+| Worker URL, pharmacy code | the phone | an address and a name, neither secret |
+| Setup key | typed, never stored | only needed to create a pharmacy |
+| Turso platform token | **the Worker only** | can create and destroy every database you own |
+| Session secret | **the Worker only** | signs sign-in tokens |
+| Database token | direct mode only | full read and write over one database |
+
+The platform token is never sent to a device and there is no field for it in the
+app. It goes in with `wrangler secret put`.
+
+### Offline
+
+Local mode is fully offline, as before. In shared mode reads are local so the
+counter keeps working, and writes queue — but the **first** sign-in on a device
+needs a connection, because the PIN is checked by the server. After that the
+session lasts 12 hours.
 
 ## Verifying the QR encoder
 
@@ -200,11 +275,19 @@ publish themselves are unrun — they need your account.
 ## Layout
 
 ```
-index.html                    markup for all five screens, plus the icon sprite
+index.html                    markup for every screen, plus the icon sprite
 css/styles.css                design tokens, phone shell, screens, native mode
 js/qr.js                      QR Code encoder (also a CommonJS module)
+js/store.js                   records, derived figures, and the sync outbox
+js/cloud.js                   sync client — Worker mode and direct Turso mode
 js/app.js                     routing, camera, codes, inventory, reports
 test/verify-qr.py             encoder verification against a reference impl
+
+worker/                       the sync Worker — see worker/README.md
+worker/src/index.js           routes, and the role check that actually counts
+worker/src/turso.js           Turso Platform API; the only user of the token
+worker/src/hrana.js           libSQL over HTTP
+worker/test/worker.test.js    node --test, no network needed
 
 App.js                        native shell: WebView + status bar + back button
 index.js                      Expo entry point
@@ -219,3 +302,6 @@ assets/                       app icon, adaptive icon, splash
 `src/webBundle.generated.js` is committed so a build works even with install
 scripts disabled, but it is generated output — edit the web sources and rerun
 `npm run bundle:web` rather than touching it.
+
+`worker/` is deployed separately with `wrangler` and is not part of the app
+bundle; nothing in it ships inside the APK.

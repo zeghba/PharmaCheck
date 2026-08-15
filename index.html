@@ -18,6 +18,10 @@
 
 <!-- ============================ ICON SPRITE ============================ -->
 <svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-cog" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M17.5 19H7a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 17.9 9.2a4.4 4.4 0 0 1-.4 9.8Z"/></symbol>
+  <symbol id="i-cloud-off" viewBox="0 0 24 24"><path d="M6.4 10.04A4.5 4.5 0 0 0 7 19h10.5a4.4 4.4 0 0 0 3.2-1.36M17.9 9.2A6 6 0 0 0 8.3 6.6"/><path d="m3 3 18 18"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4"/><path d="m10.4 12.6 8.1-8.1M16 7l2.5 2.5M13.5 9.5 16 12"/></symbol>
   <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></symbol>
   <symbol id="i-rx" viewBox="0 0 24 24"><path d="M19 21H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h9l6 6v11a1 1 0 0 1-1 1Z"/><path d="M14 3v6h6"/><path d="M8 12h4.2a1.9 1.9 0 0 1 0 3.8H8V12Zm0 3.8V19"/><path d="m12.6 15.8 3.4 3.4m0-3.4-3.4 3.4"/></symbol>
   <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8.4v7.2a1.6 1.6 0 0 1-.85 1.41l-7.2 3.86a2 2 0 0 1-1.9 0l-7.2-3.86A1.6 1.6 0 0 1 3 15.6V8.4a1.6 1.6 0 0 1 .85-1.41l7.2-3.86a2 2 0 0 1 1.9 0l7.2 3.86A1.6 1.6 0 0 1 21 8.4Z"/><path d="m3.3 7.5 8.7 4.6 8.7-4.6M12 12.1V21"/></symbol>
@@ -76,8 +80,14 @@
               </g>
             </svg>
             <h1 class="signin__title">PharmaCheck</h1>
-            <p class="signin__sub">Choose your account to continue</p>
+            <p class="signin__sub" id="signin-sub">Choose your account to continue</p>
           </div>
+
+          <!-- A phone has to be pointed at its pharmacy before anyone can
+               sign in on it, so this is reachable without an account. -->
+          <button class="iconbtn iconbtn--ghost signin__cog" type="button" id="signin-cog" aria-label="Settings">
+            <svg class="icon"><use href="#i-cog"/></svg>
+          </button>
 
           <ul class="acctlist" id="signin-accounts"></ul>
 
@@ -665,6 +675,220 @@
         <ul class="card activity" id="vs-recent"></ul>
       </section>
 
+      <!-- ===================== 9. SETTINGS ===================== -->
+      <section class="screen screen--scroll" id="screen-settings" aria-label="Settings">
+        <header class="apphead apphead--compact">
+          <button class="iconbtn iconbtn--ghost" type="button" id="set-back" aria-label="Back">
+            <svg class="icon"><use href="#i-back"/></svg>
+          </button>
+          <div>
+            <h1 class="apphead__title apphead__title--sm">Settings</h1>
+            <p class="apphead__sub" id="set-sub">Where this pharmacy's data lives</p>
+          </div>
+        </header>
+
+        <!-- Connection status -->
+        <div class="card synccard" id="sync-card">
+          <span class="syncdot" id="sync-dot" aria-hidden="true"></span>
+          <div class="synccard__body">
+            <p class="synccard__state" id="sync-state">Local only</p>
+            <p class="synccard__meta" id="sync-meta">Nothing leaves this phone</p>
+          </div>
+          <button class="btn btn--soft btn--sm" type="button" id="sync-now" hidden>Sync</button>
+        </div>
+
+        <!-- Mode -->
+        <div class="section-head"><h2 class="section-title">Where the data lives</h2></div>
+        <div class="modelist" role="radiogroup" aria-label="Storage mode">
+          <button class="mode" type="button" role="radio" aria-checked="true" data-mode="off">
+            <span class="mode__icon"><svg class="icon"><use href="#i-cloud-off"/></svg></span>
+            <span class="mode__body">
+              <span class="mode__name">This phone only</span>
+              <span class="mode__note">Works with no signal. Nothing is shared with another device, and nothing is backed up.</span>
+            </span>
+            <span class="mode__tick"><svg class="icon icon--xs"><use href="#i-check"/></svg></span>
+          </button>
+
+          <button class="mode" type="button" role="radio" aria-checked="false" data-mode="worker">
+            <span class="mode__icon"><svg class="icon"><use href="#i-cloud"/></svg></span>
+            <span class="mode__body">
+              <span class="mode__name">Shared pharmacy <span class="mode__tag">recommended</span></span>
+              <span class="mode__note">Every phone sees the same stock. Prices are settled by the server, so a vendor's handset cannot rewrite what a box was worth.</span>
+            </span>
+            <span class="mode__tick"><svg class="icon icon--xs"><use href="#i-check"/></svg></span>
+          </button>
+
+          <button class="mode" type="button" role="radio" aria-checked="false" data-mode="direct">
+            <span class="mode__icon"><svg class="icon"><use href="#i-key"/></svg></span>
+            <span class="mode__body">
+              <span class="mode__name">Turso directly</span>
+              <span class="mode__note">A copy of this phone's data in your own database, with no Worker to deploy. No server means no price protection — use it on your own handset only.</span>
+            </span>
+            <span class="mode__tick"><svg class="icon icon--xs"><use href="#i-check"/></svg></span>
+          </button>
+        </div>
+
+        <!-- ---------------- Worker mode ---------------- -->
+        <div id="set-worker" hidden>
+          <div class="section-head"><h2 class="section-title">Connection</h2></div>
+          <div class="card setform">
+            <div class="field">
+              <label class="field__label" for="set-url">Worker URL</label>
+              <div class="field__control">
+                <svg class="icon field__icon"><use href="#i-cloud"/></svg>
+                <input id="set-url" type="url" inputmode="url" autocomplete="off" spellcheck="false"
+                       placeholder="https://pharmacheck-sync.you.workers.dev">
+              </div>
+              <p class="field__error" data-error-for="url"></p>
+              <p class="field__hint">Printed by <code>wrangler deploy</code>.</p>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="set-pharmacy">Pharmacy code</label>
+              <div class="field__control">
+                <svg class="icon field__icon"><use href="#i-hash"/></svg>
+                <input id="set-pharmacy" type="text" autocomplete="off" spellcheck="false" placeholder="central">
+              </div>
+              <p class="field__error" data-error-for="pharmacy"></p>
+              <p class="field__hint">The same code on every phone in this pharmacy.</p>
+            </div>
+
+            <div class="sheet__actions">
+              <button class="btn btn--ghost" type="button" id="set-test">Test</button>
+              <button class="btn btn--primary" type="button" id="set-save">Save &amp; connect</button>
+            </div>
+            <p class="setresult" id="set-result" hidden></p>
+          </div>
+
+          <!-- Provisioning: manager only, and only needed once per pharmacy -->
+          <div id="set-provision-wrap">
+            <div class="section-head">
+              <h2 class="section-title">Set up a new pharmacy</h2>
+              <button class="linkbtn" type="button" id="set-provision-toggle">Open</button>
+            </div>
+            <div class="card setform" id="set-provision" hidden>
+              <p class="sheet__note sheet__note--info">
+                Creates a fresh Turso database for this pharmacy and writes the manager account.
+                Run this once, on your own phone.
+              </p>
+
+              <div class="field">
+                <label class="field__label" for="pv-key">Setup key</label>
+                <div class="field__control">
+                  <svg class="icon field__icon"><use href="#i-key"/></svg>
+                  <input id="pv-key" type="password" autocomplete="off" placeholder="the SETUP_KEY you chose">
+                </div>
+                <p class="field__hint">Held in memory for this one call and never saved to the phone.</p>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="pv-code">Pharmacy code</label>
+                <div class="field__control">
+                  <svg class="icon field__icon"><use href="#i-hash"/></svg>
+                  <input id="pv-code" type="text" autocomplete="off" spellcheck="false" placeholder="central">
+                </div>
+              </div>
+
+              <div class="field-row">
+                <div class="field">
+                  <label class="field__label" for="pv-name">Manager name</label>
+                  <div class="field__control">
+                    <input id="pv-name" type="text" autocomplete="off" placeholder="Sarah Kaur">
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field__label" for="pv-pin">Manager PIN</label>
+                  <div class="field__control">
+                    <input id="pv-pin" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="1234">
+                  </div>
+                </div>
+              </div>
+
+              <div class="sheet__actions">
+                <button class="btn btn--primary btn--block" type="button" id="pv-create">Create pharmacy</button>
+              </div>
+              <p class="setresult" id="pv-result" hidden></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------------- Direct mode ---------------- -->
+        <div id="set-direct" hidden>
+          <div class="section-head"><h2 class="section-title">Turso database</h2></div>
+          <div class="card setform">
+            <p class="sheet__note sheet__note--warn">
+              This token is stored on this phone. Anyone holding it can read and rewrite
+              everything in the database, prices included — so put it on your own handset,
+              not on a vendor's.
+            </p>
+
+            <div class="field">
+              <label class="field__label" for="set-turso-url">Database URL</label>
+              <div class="field__control">
+                <svg class="icon field__icon"><use href="#i-cloud"/></svg>
+                <input id="set-turso-url" type="text" autocomplete="off" spellcheck="false"
+                       placeholder="libsql://pharmacy-you.turso.io">
+              </div>
+              <p class="field__hint"><code>turso db show &lt;name&gt; --url</code></p>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="set-turso-token">Auth token</label>
+              <div class="field__control">
+                <svg class="icon field__icon"><use href="#i-key"/></svg>
+                <input id="set-turso-token" type="password" autocomplete="off" spellcheck="false"
+                       placeholder="eyJhbGciOi…">
+              </div>
+              <p class="field__hint"><code>turso db tokens create &lt;name&gt;</code></p>
+            </div>
+
+            <div class="sheet__actions">
+              <button class="btn btn--ghost" type="button" id="set-turso-test">Test</button>
+              <button class="btn btn--primary" type="button" id="set-turso-save">Save &amp; back up</button>
+            </div>
+            <p class="setresult" id="set-turso-result" hidden></p>
+
+            <button class="btn btn--soft btn--block" type="button" id="set-turso-restore">
+              Replace this phone with the stored copy
+            </button>
+          </div>
+        </div>
+
+        <!-- ---------------- What goes where ---------------- -->
+        <div class="section-head"><h2 class="section-title">What goes where</h2></div>
+        <ul class="card wherelist">
+          <li class="where">
+            <span class="where__what">Worker URL, pharmacy code</span>
+            <span class="where__place where__place--ok">This phone</span>
+            <span class="where__why">An address and a name. Neither is a secret.</span>
+          </li>
+          <li class="where">
+            <span class="where__what">Setup key</span>
+            <span class="where__place where__place--warn">Typed, never stored</span>
+            <span class="where__why">Only needed to create a pharmacy.</span>
+          </li>
+          <li class="where">
+            <span class="where__what">Turso platform token</span>
+            <span class="where__place where__place--no">Worker only</span>
+            <span class="where__why">Can create and destroy every database you own. <code>wrangler secret put TURSO_PLATFORM_TOKEN</code>.</span>
+          </li>
+          <li class="where">
+            <span class="where__what">Session secret</span>
+            <span class="where__place where__place--no">Worker only</span>
+            <span class="where__why">Signs sign-in tokens. <code>wrangler secret put SESSION_SECRET</code>.</span>
+          </li>
+          <li class="where">
+            <span class="where__what">Database token</span>
+            <span class="where__place where__place--warn">Direct mode only</span>
+            <span class="where__why">Full read and write over one database.</span>
+          </li>
+        </ul>
+
+        <button class="btn btn--danger btn--block" type="button" id="set-disconnect" hidden>
+          Disconnect and keep local data
+        </button>
+      </section>
+
     </main>
 
     <!-- ========================== TAB BARS ========================== -->
@@ -683,6 +907,9 @@
       </button>
       <button class="tab" type="button" data-go="reports">
         <svg class="icon"><use href="#i-chart"/></svg><span>Reports</span>
+      </button>
+      <button class="tab" type="button" data-go="settings">
+        <svg class="icon"><use href="#i-cog"/></svg><span>Settings</span>
       </button>
     </nav>
 
@@ -974,6 +1201,7 @@
 <script src="js/vocab.js"></script>
 <script src="js/autocomplete.js"></script>
 <script src="js/store.js"></script>
+<script src="js/cloud.js"></script>
 <script src="js/scanner.js"></script>
 <script src="js/app.js"></script>
 </body>

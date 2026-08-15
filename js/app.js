@@ -15,6 +15,7 @@
 
   var phone = $('.phone');
   var Store = window.PharmaStore;
+  var Cloud = window.PharmaCloud;
 
   /* ------------------------------------------------------------------ *
    * Native shell bridge (no-ops in a plain browser)
@@ -131,14 +132,19 @@
   var TAB_FOR_SCREEN = {
     dashboard: 'dashboard', scanner: 'scanner', manual: 'scanner',
     inventory: 'inventory', reports: 'reports', vendors: 'vendors',
-    vdetail: 'vendors',
+    vdetail: 'vendors', settings: 'settings',
     vhome: 'vhome', vsell: 'vsell', vsales: 'vsales'
   };
 
   /* What each role may reach. The guard in go() is the single place this is
-     enforced, so a stray link cannot land a vendor on a manager screen. */
-  var MANAGER_SCREENS = ['dashboard', 'scanner', 'manual', 'inventory', 'reports', 'vendors', 'vdetail'];
-  var VENDOR_SCREENS = ['vhome', 'vsell', 'vsales'];
+     enforced, so a stray link cannot land a vendor on a manager screen.
+
+     Settings is on both lists and reachable signed out as well: a phone has
+     to be pointed at its pharmacy before anyone can sign in on it. What it
+     exposes is still role-checked — provisioning is manager-only — and
+     nothing it offers is a way past the server's own checks. */
+  var MANAGER_SCREENS = ['dashboard', 'scanner', 'manual', 'inventory', 'reports', 'vendors', 'vdetail', 'settings'];
+  var VENDOR_SCREENS = ['vhome', 'vsell', 'vsales', 'settings'];
 
   var current = 'dashboard';
 
@@ -147,7 +153,7 @@
 
     var account = Store.currentAccount();
     if (!account) {
-      name = 'signin';
+      if (name !== 'settings') name = 'signin';
     } else if (name !== 'signin') {
       var allowed = account.role === Store.MANAGER ? MANAGER_SCREENS : VENDOR_SCREENS;
       if (allowed.indexOf(name) === -1) {
@@ -175,6 +181,7 @@
     else closeSellCamera();
 
     if (name === 'signin') renderSignIn();
+    if (name === 'settings') renderSettings();
     if (name === 'dashboard') renderDashboard();
     if (name === 'inventory') renderStock();
     if (name === 'vendors') { renderVendors(); requestAnimationFrame(moveVendPill); }
@@ -203,7 +210,8 @@
     if (sellSheet.classList.contains('is-open')) { resumeSelling(); return; }
 
     var account = Store.currentAccount();
-    if (!account) return;
+    if (!account) { if (current === 'settings') go('signin'); return; }
+    if (current === 'settings') { go(account.role === Store.VENDOR ? 'vhome' : 'dashboard'); return; }
     if (account.role === Store.VENDOR) { go('vhome'); return; }
     if (current === 'manual') { go('scanner'); return; }
     if (current === 'vdetail') { go('vendors'); return; }
@@ -1464,14 +1472,10 @@
 
   var pinFor = null;     // account awaiting a PIN
   var pinEntry = '';
+  var signinAccounts = [];
 
-  function renderSignIn() {
-    pinFor = null;
-    pinEntry = '';
-    $('#pinpad').hidden = true;
-    $('#pin-error').textContent = '';
-
-    var list = Store.accounts().filter(function (a) { return a.active; });
+  function paintSignInList(list) {
+    signinAccounts = list;
     $('#signin-accounts').innerHTML = list.map(function (a) {
       var initials = a.name.split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase();
       return '' +
@@ -1487,6 +1491,33 @@
     }).join('');
   }
 
+  function renderSignIn() {
+    pinFor = null;
+    pinEntry = '';
+    $('#pinpad').hidden = true;
+    $('#pin-error').textContent = '';
+
+    // The local list paints immediately so the screen is never empty; in
+    // worker mode the pharmacy's real list replaces it a moment later.
+    paintSignInList(Store.accounts().filter(function (a) { return a.active; }));
+
+    var c = Cloud.config();
+    if (c.mode !== Cloud.WORKER || !c.workerUrl || !c.pharmacy) {
+      $('#signin-sub').textContent = 'Choose your account to continue';
+      return;
+    }
+
+    $('#signin-sub').textContent = 'Connecting to “' + c.pharmacy + '”…';
+    Cloud.listAccounts(c.pharmacy).then(function (accounts) {
+      if (current !== 'signin') return;
+      if (accounts.length) paintSignInList(accounts);
+      $('#signin-sub').textContent = c.pharmacy + ' · choose your account';
+    }, function () {
+      if (current !== 'signin') return;
+      $('#signin-sub').textContent = 'Offline — showing the accounts this phone knows';
+    });
+  }
+
   function paintPinDots() {
     var dots = '';
     for (var i = 0; i < 4; i++) {
@@ -1498,7 +1529,8 @@
   $('#signin-accounts').addEventListener('click', function (event) {
     var btn = event.target.closest('[data-account]');
     if (!btn) return;
-    pinFor = Store.findAccount(btn.dataset.account);
+    pinFor = signinAccounts.filter(function (a) { return a.id === btn.dataset.account; })[0] ||
+             Store.findAccount(btn.dataset.account);
     if (!pinFor) return;
     pinEntry = '';
     $('#pin-who').textContent = pinFor.name + ' · ' +
@@ -1520,20 +1552,50 @@
     paintPinDots();
     $('#pin-error').textContent = '';
 
-    if (pinEntry.length === 4) {
-      var out = Store.signIn(pinFor.id, pinEntry);
-      if (!out.ok) {
-        $('#pin-error').textContent = out.message;
-        pinEntry = '';
-        setTimeout(paintPinDots, 120);
-        if (navigator.vibrate) navigator.vibrate([12, 60, 12]);
-        return;
-      }
-      applyRole();
-      toast('Signed in as ' + out.account.name);
-      go(out.account.role === Store.MANAGER ? 'dashboard' : 'vhome');
-    }
+    if (pinEntry.length === 4) attemptSignIn(pinEntry);
   });
+
+  function rejectPin(message) {
+    $('#pin-error').textContent = message;
+    pinEntry = '';
+    setTimeout(paintPinDots, 120);
+    if (navigator.vibrate) navigator.vibrate([12, 60, 12]);
+  }
+
+  /* In worker mode the PIN is checked by the server against a hash this
+     device never sees, and what comes back is a token scoped to one account
+     and one role. Standalone, it is still the local comparison — a profile
+     switch rather than authentication, which is what the Settings screen
+     says it is. */
+  function attemptSignIn(pin) {
+    var c = Cloud.config();
+
+    if (c.mode !== Cloud.WORKER) {
+      var out = Store.signIn(pinFor.id, pin);
+      if (!out.ok) { rejectPin(out.message); return; }
+      finishSignIn(out.account);
+      return;
+    }
+
+    $('#pin-error').textContent = '';
+    $('#pin-who').textContent = 'Checking…';
+
+    Cloud.signIn(pinFor.id, pin).then(function (res) {
+      applyRole();
+      finishSignIn(res.account);
+      Cloud.seedIfEmpty().then(function () { refreshCurrentScreen(); }, function () { /* reported in Settings */ });
+    }, function (e) {
+      $('#pin-who').textContent = pinFor.name + ' · ' +
+        (pinFor.role === Store.MANAGER ? 'Manager' : 'Vendor');
+      rejectPin(e.message);
+    });
+  }
+
+  function finishSignIn(account) {
+    applyRole();
+    toast('Signed in as ' + account.name);
+    go(account.role === Store.MANAGER ? 'dashboard' : 'vhome');
+  }
 
   $('#pin-back').addEventListener('click', function () {
     pinFor = null;
@@ -1595,15 +1657,29 @@
     setTimeout(function () { if (!anySheetOpen()) scrim.hidden = true; }, 300);
   }
 
+  /* Anything still in the outbox goes up before the token is dropped —
+     otherwise a sale made just before the end of a shift waits for whoever
+     signs in next. */
   function signOut() {
     closeAccountSheet();
     closeCamera();
     closeSellCamera();
-    Store.signOut();
-    applyRole();
-    renderSignIn();
-    go('signin');
-    toast('Signed out');
+
+    var done = function () {
+      Cloud.signOut();
+      Store.signOut();
+      applyRole();
+      renderSignIn();
+      go('signin');
+      toast('Signed out');
+    };
+
+    if (Cloud.config().mode === Cloud.WORKER && Store.pendingCount()) {
+      toast('Sending the last changes…');
+      Cloud.sync().then(done, done);
+      return;
+    }
+    done();
   }
 
   $('#account-btn').addEventListener('click', openAccountSheet);
@@ -2213,6 +2289,286 @@
   }
 
   /* ================================================================== *
+   * 9. Settings — which copy of the data this phone is looking at
+   * ================================================================== */
+  function setResult(el, text, kind) {
+    var node = $(el);
+    if (!text) { node.hidden = true; return; }
+    node.hidden = false;
+    node.textContent = text;
+    node.className = 'setresult setresult--' + (kind || 'ok');
+  }
+
+  function relativeTime(ts) {
+    if (!ts) return 'never';
+    var secs = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (secs < 45) return 'just now';
+    if (secs < 5400) return Math.round(secs / 60) + ' min ago';
+    if (secs < 86400) return Math.round(secs / 3600) + ' h ago';
+    return new Date(ts).toLocaleDateString([], { day: 'numeric', month: 'short' });
+  }
+
+  function paintSyncCard() {
+    var s = Cloud.status();
+    var dot = $('#sync-dot');
+    var state = $('#sync-state');
+    var meta = $('#sync-meta');
+
+    $('#sync-now').hidden = s.mode === Cloud.OFF;
+    $('#set-disconnect').hidden = s.mode === Cloud.OFF;
+
+    var tone = 'off';
+    if (s.mode === Cloud.OFF) {
+      state.textContent = 'Local only';
+      meta.textContent = 'Nothing leaves this phone';
+    } else if (s.lastError) {
+      tone = 'bad';
+      state.textContent = 'Sync problem';
+      meta.textContent = s.lastError;
+    } else if (s.mode === Cloud.WORKER && !s.signedIn) {
+      tone = 'warn';
+      state.textContent = 'Connected · signed out';
+      meta.textContent = 'Sign in to sync ' + (s.pharmacy ? '“' + s.pharmacy + '”' : 'this pharmacy');
+    } else if (s.pending) {
+      tone = 'warn';
+      state.textContent = s.pending + (s.pending === 1 ? ' change waiting' : ' changes waiting');
+      meta.textContent = 'Last synced ' + relativeTime(s.lastSync);
+    } else if (s.lastSync) {
+      tone = 'on';
+      state.textContent = s.mode === Cloud.WORKER ? 'In sync' : 'Backed up';
+      meta.textContent = 'Last synced ' + relativeTime(s.lastSync);
+    } else {
+      tone = 'warn';
+      state.textContent = 'Not synced yet';
+      meta.textContent = 'Press Sync to send this phone’s data up';
+    }
+
+    dot.className = 'syncdot syncdot--' + tone + (s.syncing ? ' syncdot--busy' : '');
+    $('#sync-now').textContent = s.syncing ? 'Syncing…' : 'Sync';
+    $('#sync-now').disabled = Boolean(s.syncing);
+  }
+
+  function renderSettings() {
+    var c = Cloud.config();
+    var account = Store.currentAccount();
+    var isMgr = !account || account.role === Store.MANAGER;
+
+    $$('#screen-settings .mode').forEach(function (btn) {
+      btn.setAttribute('aria-checked', String(btn.dataset.mode === c.mode));
+    });
+
+    $('#set-worker').hidden = c.mode !== Cloud.WORKER;
+    $('#set-direct').hidden = c.mode !== Cloud.DIRECT;
+
+    // Creating a pharmacy is the manager's job, and needs a key they hold.
+    $('#set-provision-wrap').hidden = !isMgr;
+
+    $('#set-url').value = c.workerUrl || '';
+    $('#set-pharmacy').value = c.pharmacy || '';
+    $('#set-turso-url').value = c.tursoUrl || '';
+    $('#set-turso-token').value = c.tursoToken || '';
+    $('#pv-code').value = $('#pv-code').value || c.pharmacy || '';
+    if (account) $('#pv-name').value = $('#pv-name').value || account.name;
+
+    $('#set-sub').textContent = c.mode === Cloud.OFF
+      ? 'This phone is working on its own'
+      : c.pharmacy
+        ? 'Pharmacy “' + c.pharmacy + '”'
+        : 'Where this pharmacy’s data lives';
+
+    setResult('#set-result', '');
+    setResult('#set-turso-result', '');
+    paintSyncCard();
+  }
+
+  $$('#screen-settings .mode').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      Cloud.configure({ mode: btn.dataset.mode });
+      renderSettings();
+    });
+  });
+
+  $('#set-back').addEventListener('click', function () { window.__pharmacheckBack(); });
+  $('#signin-cog').addEventListener('click', function () { go('settings'); });
+
+  $('#set-test').addEventListener('click', function () {
+    var url = $('#set-url').value.trim();
+    if (!url) { setResult('#set-result', 'Enter the Worker URL first', 'bad'); return; }
+    setResult('#set-result', 'Checking…', 'busy');
+    Cloud.health(url).then(function (body) {
+      var missing = Object.keys(body.configured || {}).filter(function (k) {
+        return k !== 'group' && !body.configured[k];
+      });
+      setResult('#set-result',
+        missing.length
+          ? 'Worker is up, but these are not set yet: ' + missing.join(', ')
+          : 'Worker is up and fully configured (v' + body.version + ')',
+        missing.length ? 'bad' : 'ok');
+    }, function (e) {
+      setResult('#set-result', e.message, 'bad');
+    });
+  });
+
+  /* Saving is also the first sync: a device that has been running on its own
+     either seeds an empty pharmacy with what it holds, or takes the
+     pharmacy's copy if there already is one. */
+  $('#set-save').addEventListener('click', function () {
+    var url = $('#set-url').value.trim();
+    var pharmacy = $('#set-pharmacy').value.trim().toLowerCase();
+    if (!url) { setResult('#set-result', 'Enter the Worker URL first', 'bad'); return; }
+    if (!pharmacy) { setResult('#set-result', 'Enter the pharmacy code', 'bad'); return; }
+
+    Cloud.configure({ mode: Cloud.WORKER, workerUrl: url, pharmacy: pharmacy, lastError: null });
+    setResult('#set-result', 'Connecting…', 'busy');
+
+    Cloud.listAccounts(pharmacy).then(function (accounts) {
+      setResult('#set-result',
+        'Connected. ' + accounts.length + (accounts.length === 1 ? ' account' : ' accounts') +
+        ' in “' + pharmacy + '” — sign out and back in to sync.', 'ok');
+      renderSettings();
+    }, function (e) {
+      setResult('#set-result', e.message, 'bad');
+      paintSyncCard();
+    });
+  });
+
+  $('#set-provision-toggle').addEventListener('click', function () {
+    var panel = $('#set-provision');
+    panel.hidden = !panel.hidden;
+    this.textContent = panel.hidden ? 'Open' : 'Close';
+  });
+
+  $('#pv-create').addEventListener('click', function () {
+    var url = $('#set-url').value.trim();
+    var fields = {
+      setupKey: $('#pv-key').value,
+      pharmacy: $('#pv-code').value.trim().toLowerCase(),
+      managerName: $('#pv-name').value.trim(),
+      managerPin: $('#pv-pin').value.trim()
+    };
+
+    if (!url) { setResult('#pv-result', 'Enter the Worker URL above first', 'bad'); return; }
+    if (!fields.setupKey) { setResult('#pv-result', 'The setup key is required', 'bad'); return; }
+    if (!fields.pharmacy) { setResult('#pv-result', 'Choose a pharmacy code', 'bad'); return; }
+    if (!fields.managerName) { setResult('#pv-result', 'Enter the manager’s name', 'bad'); return; }
+    if (!/^\d{4}$/.test(fields.managerPin)) { setResult('#pv-result', 'The manager PIN must be 4 digits', 'bad'); return; }
+
+    Cloud.configure({ mode: Cloud.WORKER, workerUrl: url });
+    setResult('#pv-result', 'Creating the database — this takes a few seconds…', 'busy');
+
+    Cloud.provision(fields).then(function (body) {
+      $('#pv-key').value = '';
+      $('#pv-pin').value = '';
+      $('#set-pharmacy').value = body.pharmacy;
+      setResult('#pv-result',
+        (body.created ? 'Created ' : 'Reused ') + body.database +
+        '. Sign in as ' + fields.managerName + ' to send this phone’s stock up.', 'ok');
+      renderSettings();
+    }, function (e) {
+      setResult('#pv-result', e.message, 'bad');
+    });
+  });
+
+  $('#sync-now').addEventListener('click', function () {
+    paintSyncCard();
+    Cloud.sync().then(function (result) {
+      if (result.skipped === 'signed-out') {
+        toast('Sign in first — sync needs your account');
+      } else if (result.ok) {
+        toast(result.applied ? 'Synced ' + result.applied + ' change' + (result.applied === 1 ? '' : 's') : 'Up to date');
+      } else {
+        toast(result.message || (result.refused && result.refused[0] && result.refused[0].message) || 'Sync failed');
+      }
+      renderSettings();
+      refreshCurrentScreen();
+    });
+  });
+
+  /* ---------------------------- direct mode ---------------------------- */
+  $('#set-turso-test').addEventListener('click', function () {
+    Cloud.configure({
+      mode: Cloud.DIRECT,
+      tursoUrl: $('#set-turso-url').value.trim(),
+      tursoToken: $('#set-turso-token').value.trim()
+    });
+    setResult('#set-turso-result', 'Checking…', 'busy');
+    Cloud.test().then(function (r) {
+      setResult('#set-turso-result', r.message, r.ok ? 'ok' : 'bad');
+    }, function (e) {
+      setResult('#set-turso-result', e.message, 'bad');
+    });
+  });
+
+  $('#set-turso-save').addEventListener('click', function () {
+    var url = $('#set-turso-url').value.trim();
+    var token = $('#set-turso-token').value.trim();
+    if (!url) { setResult('#set-turso-result', 'Enter the database URL', 'bad'); return; }
+    if (!token) { setResult('#set-turso-result', 'Enter the auth token', 'bad'); return; }
+
+    Cloud.configure({ mode: Cloud.DIRECT, tursoUrl: url, tursoToken: token, lastError: null });
+    setResult('#set-turso-result', 'Backing up…', 'busy');
+
+    Cloud.sync().then(function (r) {
+      setResult('#set-turso-result',
+        r.ok ? 'This phone’s data is stored in Turso' : (r.message || 'Backup failed'),
+        r.ok ? 'ok' : 'bad');
+      paintSyncCard();
+    });
+  });
+
+  $('#set-turso-restore').addEventListener('click', function () {
+    setResult('#set-turso-result', 'Restoring…', 'busy');
+    Cloud.restore().then(function (r) {
+      setResult('#set-turso-result', r.message, r.ok ? 'ok' : 'bad');
+      paintSyncCard();
+      applyRole();
+      refreshCurrentScreen();
+    }, function (e) {
+      setResult('#set-turso-result', e.message, 'bad');
+    });
+  });
+
+  $('#set-disconnect').addEventListener('click', function () {
+    Cloud.disconnect();
+    renderSettings();
+    toast('Disconnected — this phone keeps its data');
+  });
+
+  /* A sync rewrites the records underneath whatever is on screen, so the
+     screen has to be repainted from them rather than left as it was. */
+  function refreshCurrentScreen() {
+    if (current === 'dashboard') renderDashboard();
+    else if (current === 'inventory') renderStock();
+    else if (current === 'reports') renderReports(activePeriod);
+    else if (current === 'vendors') renderVendors();
+    else if (current === 'vdetail') renderVendorDetail();
+    else if (current === 'vhome') renderVendorHome();
+    else if (current === 'vsales') renderVendorSales();
+  }
+
+  Cloud.onChange(function () {
+    if (current === 'settings') paintSyncCard();
+  });
+
+  /* Every mutation lands in the outbox; this drains it a moment later, so a
+     sale syncs on its own rather than waiting for someone to open Settings.
+     Failures are silent here — the Settings card is where they are
+     reported, and a vendor mid-sale cannot act on them anyway. */
+  var syncTimer = null;
+  function scheduleSync() {
+    if (Cloud.config().mode === Cloud.OFF) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(function () {
+      Cloud.sync().then(function (result) {
+        if (result && result.ok && current === 'settings') renderSettings();
+      });
+    }, 2500);
+  }
+
+  Store.onChange(scheduleSync);
+  window.addEventListener('online', scheduleSync);
+
+  /* ================================================================== *
    * Boot
    * ================================================================== */
   segButtons.forEach(function (b) {
@@ -2227,8 +2583,17 @@
   if (!isNative) window.__pharmacheckBuild({ version: '1.0.0', channel: 'web', embedded: true });
 
   Store.load();
+  Cloud.config();
   setUpTypeAhead();
   applyRole();
+
+  /* Catch up on whatever happened elsewhere while this phone was closed,
+     and push anything it did offline. */
+  if (Cloud.config().mode !== Cloud.OFF) {
+    Cloud.sync().then(function (result) {
+      if (result && result.ok) { applyRole(); refreshCurrentScreen(); }
+    });
+  }
 
   var signedIn = Store.currentAccount();
   if (signedIn && signedIn.role === Store.MANAGER) {

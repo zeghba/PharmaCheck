@@ -1,0 +1,26 @@
+name = "pharmacheck-sync"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# Not a secret: the organisation slug and the group are visible in every
+# Turso dashboard URL. The credentials live in secrets — see below.
+[vars]
+TURSO_ORG = ""
+TURSO_GROUP = "default"
+
+# Maps a pharmacy code to its database hostname and token. Create it with
+#   wrangler kv namespace create PHARMACIES
+# and paste the id it prints here.
+[[kv_namespaces]]
+binding = "PHARMACIES"
+id = ""
+
+# Set with `wrangler secret put NAME`, never in this file:
+#
+#   TURSO_PLATFORM_TOKEN   creates databases; the one token that must
+#                          never reach a phone
+#   SESSION_SECRET         signs session tokens
+#   SETUP_KEY              gates POST /v1/pharmacy, so only you can
+#                          provision a new pharmacy
+[observability]
+enabled = true

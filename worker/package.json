@@ -1,0 +1,16 @@
+{
+  "name": "pharmacheck-sync",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sync and provisioning Worker for PharmaCheck — holds the Turso platform token and prices sales server-side.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "test": "node --test test/worker.test.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

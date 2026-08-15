@@ -12,17 +12,22 @@
 (function (global) {
   'use strict';
 
-  var KEY = 'pharmacheck.db.v4';
+  var KEY = 'pharmacheck.db.v5';
+  var LEGACY_V4 = 'pharmacheck.db.v4';
   var LEGACY_V3 = 'pharmacheck.db.v3';
   var LEGACY_V2 = 'pharmacheck.db.v2';
   var DAY = 86400000;
 
   /* Accounts and roles.
    *
-   * This is a local profile switcher with a PIN, not authentication: there is
-   * no server, so the PIN only stops a colleague picking up the phone and
-   * billing sales to someone else. Anyone with the device can read it. Real
-   * multi-user access control needs a backend, which this app does not have.
+   * Standalone, this is a local profile switcher with a PIN rather than
+   * authentication: the PIN stops a colleague picking up the phone and billing
+   * sales to someone else, but anyone with the device can read it.
+   *
+   * Connected to the sync Worker (see js/cloud.js) it becomes real: PINs are
+   * checked server-side against a hash, and what a role may write is enforced
+   * where the device cannot reach it. Which of the two is in play depends on
+   * the mode set in Settings.
    */
   var MANAGER = 'manager';
   var VENDOR = 'vendor';
@@ -171,13 +176,15 @@
   function fresh() {
     var now = Date.now();
     return {
-      version: 4,
+      version: 5,
       seq: 480,
       medicines: CATALOGUE.map(function (m) { return Object.assign({}, m); }),
       prescriptions: seedHistory(),
       accounts: defaultAccounts(now),
       sales: seedSales(),
-      sessionId: null
+      sessionId: null,
+      outbox: [],
+      syncedAt: null
     };
   }
 
@@ -274,14 +281,40 @@
     };
   }
 
+  /* v5 adds the outbox. A device that has been working offline keeps every
+     record it already has; those go up as a seed on its first sync. */
+  function migrateToV5(four) {
+    return {
+      version: 5,
+      seq: four.seq || 480,
+      medicines: four.medicines || [],
+      prescriptions: four.prescriptions || [],
+      accounts: four.accounts || defaultAccounts(Date.now()),
+      sales: four.sales || [],
+      sessionId: four.sessionId || null,
+      outbox: [],
+      syncedAt: null
+    };
+  }
+
   function load() {
     if (db) return db;
     try {
       var raw = global.localStorage && global.localStorage.getItem(KEY);
       if (raw) {
         var parsed = JSON.parse(raw);
-        if (parsed && parsed.version === 4 && Array.isArray(parsed.medicines)) {
+        if (parsed && parsed.version === 5 && Array.isArray(parsed.medicines)) {
+          if (!Array.isArray(parsed.outbox)) parsed.outbox = [];
           db = parsed;
+          return db;
+        }
+      }
+      var v4 = global.localStorage && global.localStorage.getItem(LEGACY_V4);
+      if (v4) {
+        var four = JSON.parse(v4);
+        if (four && Array.isArray(four.medicines)) {
+          db = migrateToV5(four);
+          save();
           return db;
         }
       }
@@ -289,7 +322,7 @@
       if (v3) {
         var three = JSON.parse(v3);
         if (three && Array.isArray(three.medicines)) {
-          db = migrateToV4(three);
+          db = migrateToV5(migrateToV4(three));
           save();
           return db;
         }
@@ -298,7 +331,7 @@
       if (legacy) {
         var old = JSON.parse(legacy);
         if (old && Array.isArray(old.medicines)) {
-          db = migrateToV4(migrateFromV2(old));
+          db = migrateToV5(migrateToV4(migrateFromV2(old)));
           save();
           return db;
         }
@@ -313,6 +346,121 @@
     try {
       if (global.localStorage) global.localStorage.setItem(KEY, JSON.stringify(db));
     } catch (e) { /* private mode or quota — the app still works in memory */ }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The outbox
+   *
+   * Every screen still reads the copy on this device, so the counter works
+   * with no signal. What changes when a Worker is configured is that each
+   * mutation also leaves a note here, and js/cloud.js drains those notes
+   * when there is a connection.
+   *
+   * Ops carry a client-generated id. Replaying the outbox after a dropped
+   * connection is therefore safe: the server recognises an id it has
+   * already applied and skips it rather than billing the box twice.
+   * ------------------------------------------------------------------ */
+  var listeners = [];
+  var syncEnabled = false;
+
+  /* Off by default: a standalone install has nowhere to send ops, and an
+     outbox nobody drains is just a leak. cloud.js turns this on once a
+     Worker is configured. */
+  function setSyncEnabled(on) {
+    syncEnabled = Boolean(on);
+    if (!syncEnabled) clearOutbox();
+  }
+
+  function onChange(fn) { listeners.push(fn); }
+
+  function announce() {
+    listeners.forEach(function (fn) {
+      try { fn(); } catch (e) { /* a bad listener must not break a sale */ }
+    });
+  }
+
+  function journal(op) {
+    if (!syncEnabled) return op;
+    var d = load();
+    if (!Array.isArray(d.outbox)) d.outbox = [];
+    d.outbox.push(Object.assign({ _id: 'op-' + Date.now().toString(36) + '-' + d.outbox.length, _at: Date.now() }, op));
+    save();
+    announce();
+    return op;
+  }
+
+  function outbox() { return load().outbox.slice(); }
+  function pendingCount() { return load().outbox.length; }
+
+  function dropOps(ids) {
+    var gone = {};
+    ids.forEach(function (id) { gone[id] = true; });
+    var d = load();
+    d.outbox = d.outbox.filter(function (op) { return !gone[op._id]; });
+    save();
+  }
+
+  function clearOutbox() {
+    load().outbox = [];
+    save();
+  }
+
+  /* Everything this device holds, in the shape the Worker's seed op wants.
+     Used once, when a device that has been running standalone joins a
+     pharmacy that has no stock yet. */
+  function seedPayload() {
+    var d = load();
+    return {
+      medicines: d.medicines,
+      sales: d.sales,
+      prescriptions: d.prescriptions,
+      seq: d.seq
+    };
+  }
+
+  /* Replaces local records with the server's, which is the authority on
+     stock and pricing. Two things survive: who is signed in on this device,
+     and any ops not yet accepted — dropping those would lose a sale made
+     while the connection was down. */
+  function hydrate(snap) {
+    var d = load();
+    if (!snap || !Array.isArray(snap.medicines)) return { ok: false };
+
+    var pins = {};
+    d.accounts.forEach(function (a) { if (a.pin) pins[a.id] = a.pin; });
+
+    d.medicines = snap.medicines.map(function (m) { return Object.assign({}, m); });
+    d.prescriptions = (snap.prescriptions || []).map(function (p) { return Object.assign({}, p); });
+    d.sales = (snap.sales || []).map(function (s) { return Object.assign({}, s); });
+    d.accounts = (snap.accounts || []).map(function (a) {
+      // The server never sends PINs back. A PIN this device already knew is
+      // kept so an offline profile switch still works.
+      return Object.assign({}, a, { pin: pins[a.id] || null });
+    });
+    if (snap.seq) d.seq = Math.max(d.seq || 0, snap.seq);
+    d.syncedAt = snap.syncedAt || Date.now();
+
+    if (d.sessionId && !d.accounts.some(function (a) { return a.id === d.sessionId; })) {
+      d.sessionId = null;
+    }
+
+    save();
+    announce();
+    return { ok: true, syncedAt: d.syncedAt };
+  }
+
+  function syncedAt() { return load().syncedAt; }
+
+  /* Used by cloud.js after the Worker has verified a PIN, so the session
+     comes from the server's answer rather than from a local comparison. */
+  function adoptSession(accountId, account) {
+    var d = load();
+    if (account && !d.accounts.some(function (a) { return a.id === account.id; })) {
+      d.accounts.push(Object.assign({}, account, { pin: null }));
+    }
+    d.sessionId = accountId;
+    save();
+    return currentAccount();
   }
 
   /* ------------------------------------------------------------------ *
@@ -376,6 +524,8 @@
       existing.qty += units;
       if (expiry) existing.expiry = expiry.value;
       save();
+      journal({ op: 'stock', name: existing.name, units: units,
+                details: { expiry: expiry ? expiry.value : undefined } });
       return { ok: true, medicine: existing, created: false };
     }
 
@@ -407,6 +557,7 @@
     };
     load().medicines.unshift(created);
     save();
+    journal({ op: 'stock', name: created.name, units: units, details: created });
     return { ok: true, medicine: created, created: true };
   }
 
@@ -454,6 +605,7 @@
     };
     load().prescriptions.push(record);
     save();
+    journal({ op: 'prescription.create', record: record });
     return record;
   }
 
@@ -483,6 +635,7 @@
     record.status = 'filled';
     record.filledAt = Date.now();
     save();
+    journal({ op: 'prescription.fill', code: record.code });
     return { ok: true, record: record };
   }
 
@@ -660,6 +813,7 @@
     };
     load().accounts.push(account);
     save();
+    journal({ op: 'vendor.add', account: account });
     return { ok: true, account: account };
   }
 
@@ -677,6 +831,7 @@
     }
     if (fields.active !== undefined) account.active = Boolean(fields.active);
     save();
+    journal({ op: 'vendor.update', id: account.id, fields: fields });
     return { ok: true, account: account };
   }
 
@@ -689,12 +844,14 @@
     if (hasSales) {
       account.active = false;
       save();
+      journal({ op: 'vendor.remove', id: id });
       return { ok: true, deactivated: true, account: account };
     }
     var d = load();
     d.accounts = d.accounts.filter(function (a) { return a.id !== id; });
     if (d.sessionId === id) d.sessionId = null;
     save();
+    journal({ op: 'vendor.remove', id: id });
     return { ok: true, deactivated: false };
   }
 
@@ -711,6 +868,7 @@
     med.price = Math.round(p * 100) / 100;
     med.cost = Math.round(c * 100) / 100;
     save();
+    journal({ op: 'pricing', name: med.name, price: med.price, cost: med.cost });
     return { ok: true, medicine: med };
   }
 
@@ -747,6 +905,11 @@
     };
     load().sales.push(sale);
     save();
+    /* The server re-reads price and cost from its own row when this lands,
+       so the figures above are this device's optimistic copy, not the ones
+       the vendor is finally paid on. */
+    journal({ op: 'sale', id: sale.id, vendorId: sale.vendorId, medicine: sale.medicine,
+              boxes: sale.boxes, at: sale.at, source: sale.source });
     return { ok: true, sale: sale, medicine: med };
   }
 
@@ -868,6 +1031,12 @@
     setPricing: setPricing,
     sales: sales, recordSale: recordSale, recentSales: recentSales,
     salesBetween: salesBetween, saleTotals: saleTotals, vendorStats: vendorStats,
-    vendorBreakdown: vendorBreakdown, validExpiry: validExpiry
+    vendorBreakdown: vendorBreakdown, validExpiry: validExpiry,
+
+    // the sync seam — see js/cloud.js
+    setSyncEnabled: setSyncEnabled, onChange: onChange,
+    outbox: outbox, pendingCount: pendingCount, dropOps: dropOps, clearOutbox: clearOutbox,
+    seedPayload: seedPayload, hydrate: hydrate, syncedAt: syncedAt,
+    adoptSession: adoptSession
   };
 })(typeof self !== 'undefined' ? self : this);

@@ -1957,3 +1957,202 @@ html.role-vendor .pricerow { display: none; }
 #stock-form .sheetscroll { gap: 14px; }
 /* #s-new is one child of the scroll area, so it needs its own rhythm. */
 #s-new { display: flex; flex-direction: column; gap: 14px; }
+
+/* ============================== SETTINGS ==============================
+   The one screen that is about the app rather than the pharmacy: which
+   copy of the data this phone is looking at, and which of the secrets
+   behind that is allowed to be on it. */
+
+/* Six tabs is one more than five; the labels give up half a point. */
+#tabs-manager { grid-template-columns: repeat(6, 1fr); }
+#tabs-manager .tab span { font-size: 9px; letter-spacing: 0; }
+#tabs-manager .tab .icon { width: 21px; height: 21px; }
+
+.signin__cog {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  color: var(--muted);
+}
+.signin { position: relative; }
+
+/* ------------------------------------------------- connection status */
+.synccard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.synccard__body { flex: 1; min-width: 0; }
+.synccard__state { font-size: 15px; font-weight: 700; letter-spacing: -.2px; }
+.synccard__meta {
+  font-size: 12px;
+  font-weight: 560;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.syncdot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 4px rgba(122, 140, 161, .14);
+}
+.syncdot--on   { background: var(--green); box-shadow: 0 0 0 4px rgba(15, 164, 92, .16); }
+.syncdot--warn { background: var(--amber); box-shadow: 0 0 0 4px rgba(224, 138, 0, .16); }
+.syncdot--bad  { background: var(--red);   box-shadow: 0 0 0 4px rgba(224, 59, 69, .16); }
+
+/* Pulses only while a sync is actually in flight, so a still dot means
+   the last one finished rather than that the screen is stale. */
+.syncdot--busy { animation: syncpulse 1.1s ease-in-out infinite; }
+@keyframes syncpulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: .45; transform: scale(.82); }
+}
+
+.btn--sm { padding: 8px 14px; font-size: 12.5px; border-radius: 11px; }
+
+/* ------------------------------------------------------------ modes */
+.modelist { display: flex; flex-direction: column; gap: 9px; }
+
+.mode {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color .16s ease, background .16s ease, transform .12s ease;
+}
+.mode:active { transform: scale(.99); }
+.mode[aria-checked="true"] { border-color: var(--blue-500); background: #F7FBFF; }
+
+.mode__icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: var(--blue-100);
+  color: var(--blue-700);
+}
+.mode[aria-checked="true"] .mode__icon {
+  background: linear-gradient(155deg, #4A9BF7, var(--blue-700));
+  color: #fff;
+}
+
+.mode__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.mode__name { font-size: 14.5px; font-weight: 700; letter-spacing: -.2px; }
+.mode__note { font-size: 11.5px; font-weight: 540; color: var(--muted); line-height: 1.45; }
+
+.mode__tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--green-bg);
+  color: var(--green-2);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  text-transform: uppercase;
+  vertical-align: 1.5px;
+}
+
+.mode__tick {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--line);
+  color: transparent;
+}
+.mode[aria-checked="true"] .mode__tick {
+  background: var(--blue-500);
+  border-color: var(--blue-500);
+  color: #fff;
+}
+
+/* ------------------------------------------------------------ forms */
+.setform { display: flex; flex-direction: column; gap: 14px; }
+.setform .sheet__actions { margin-top: 2px; }
+
+.field__hint {
+  font-size: 11px;
+  font-weight: 540;
+  color: var(--muted);
+  margin-top: 5px;
+  line-height: 1.45;
+}
+.field__hint code,
+.where__why code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  background: var(--blue-100);
+  color: var(--blue-700);
+  padding: 1.5px 5px;
+  border-radius: 5px;
+}
+
+.setresult {
+  font-size: 12.5px;
+  font-weight: 620;
+  padding: 11px 13px;
+  border-radius: 12px;
+  line-height: 1.45;
+}
+.setresult--ok  { background: var(--green-bg); color: var(--green-2); }
+.setresult--bad { background: var(--red-bg);   color: var(--red); }
+.setresult--busy { background: var(--blue-100); color: var(--blue-700); }
+
+.sheet__note--warn {
+  background: var(--amber-bg);
+  color: var(--amber);
+  font-weight: 600;
+  margin-bottom: 0;
+}
+
+/* -------------------------------------------------- what goes where */
+.wherelist { display: flex; flex-direction: column; gap: 0; }
+
+.where {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 10px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+.where:last-child { border-bottom: 0; padding-bottom: 2px; }
+.where:first-child { padding-top: 2px; }
+
+.where__what { font-size: 13px; font-weight: 660; letter-spacing: -.1px; }
+.where__why {
+  grid-column: 1 / -1;
+  font-size: 11.5px;
+  font-weight: 540;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.where__place {
+  align-self: start;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .2px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.where__place--ok   { background: var(--green-bg); color: var(--green-2); }
+.where__place--warn { background: var(--amber-bg); color: var(--amber); }
+.where__place--no   { background: var(--red-bg);   color: var(--red); }
