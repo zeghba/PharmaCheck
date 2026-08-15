@@ -5,18 +5,22 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import webBundle from './src/webBundle.generated';
+import useOtaUpdates from './src/useOtaUpdates';
+import UpdateBanner from './src/UpdateBanner';
 
 /*
  * Native shell around the PharmaCheck Admin web UI.
  *
- * Deliberately thinner than the pharmacy app's shell: no camera, no OTA. This
- * app provisions pharmacies and hands out accounts, so it is installed
- * deliberately on one device and updated by installing a new APK — an app
- * that can create and destroy databases should not be able to rewrite itself
- * from the network.
+ * No camera — this app never scans anything. It does carry OTA updates, so a
+ * fix reaches the administrator's handset without rebuilding and sideloading
+ * an APK. Because this is the app that can create and destroy databases, the
+ * update path is the cautious variant: `checkAutomatically` is NEVER, so the
+ * hook is the only thing that checks, and a downloaded bundle never replaces
+ * the running one mid-task — Restart applies it, otherwise it waits for the
+ * next cold start.
  *
- * What it does add is what a web page cannot do for itself: the real status
- * bar, safe-area insets, and Android hardware-back routed into the app.
+ * The rest is what a web page cannot do for itself: the real status bar,
+ * safe-area insets, and Android hardware-back routed into the app.
  */
 
 /*
@@ -44,7 +48,10 @@ const PAGE_BG = '#F1F5FA';
 function Shell() {
   const webRef = useRef(null);
   const [screen, setScreen] = useState('signin');
+  const [dismissed, setDismissed] = useState(false);
   const insets = useSafeAreaInsets();
+
+  const { isUpdateReady, applyUpdate } = useOtaUpdates();
 
   const onMessage = useCallback((event) => {
     let payload;
@@ -94,6 +101,14 @@ function Shell() {
         // The admin app talks to a Worker over https and nothing else.
         mixedContentMode="never"
         allowsBackForwardNavigationGestures={false}
+      />
+
+      {/* Sits above the tab bar; on the sign-in screen there is no tab bar,
+          so it drops to the bottom of the viewport instead. */}
+      <UpdateBanner
+        visible={isUpdateReady && !dismissed}
+        onRestart={applyUpdate}
+        onDismiss={() => setDismissed(true)}
       />
     </View>
   );
